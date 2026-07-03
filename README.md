@@ -1,8 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VolleyStat
 
-## Getting Started
+Volleyball player statistics comparison dashboard — personal portfolio + analysis tool.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router) + TypeScript
+- **Supabase** (Postgres) — raw counts data model
+- **TanStack Query** — client-side data layer
+- **Chart.js** via `react-chartjs-2` — radar charts
+- **Tailwind CSS** + **shadcn/ui**
+- **Vercel** deploy target
+
+## Pages
+
+- `/compare` — pick 2 players × seasons, stat table + position radars, overlay toggle, club/NT source selector
+- `/all-stats` — sortable/filterable leaderboard; columns adapt by position group
+
+## Setup
+
+```bash
+# 1. Install deps
+npm install
+
+# 2. Configure Supabase
+cp .env.local.example .env.local
+# Fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+# 3. Run migration in Supabase SQL editor
+#    Paste contents of: supabase/migrations/001_schema.sql
+
+# 4. Seed mock data (requires SUPABASE_SERVICE_ROLE_KEY in .env.local)
+npm run seed
+
+# 5. Start dev server
 
 ```bash
 npm run dev
