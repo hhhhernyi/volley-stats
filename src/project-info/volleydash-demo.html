@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VolleyStat — player comparison demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root[data-theme="dark"]{
+    --bg:#0e1116; --surface:#161b22; --surface-2:#1c232d;
+    --border:#2a323d; --border-2:#3a4453;
+    --text:#e6edf3; --text-dim:#8b97a7; --text-faint:#5f6b7a;
+    --grid:rgba(255,255,255,.08);
+    --p1-soft:rgba(226,72,63,.18); --p2-soft:rgba(55,135,221,.18);
+  }
+  :root[data-theme="light"]{
+    --bg:#f7f8fa; --surface:#fff; --surface-2:#f0f2f5;
+    --border:#e3e6ea; --border-2:#d2d7de;
+    --text:#1a1f26; --text-dim:#5b6573; --text-faint:#98a1ae;
+    --grid:rgba(0,0,0,.09);
+    --p1-soft:rgba(226,72,63,.10); --p2-soft:rgba(55,135,221,.10);
+  }
+  :root{ --p1:#e2483f; --p2:#3787dd; --accent:#1d9e75; --radius:12px; --radius-sm:8px; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5;transition:background .2s,color .2s;}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 20px 80px;}
+
+  header.topbar{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);}
+  .topbar-inner{max-width:1060px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:24px;}
+  .brand{display:flex;align-items:baseline;gap:10px;font-weight:700;letter-spacing:-.02em;font-size:19px;}
+  .brand .dot{color:var(--accent);}
+  .brand .sub{font-size:12px;font-weight:500;color:var(--text-faint);}
+  nav.tabs{display:flex;gap:4px;margin-left:auto;}
+  nav.tabs button{background:transparent;border:none;color:var(--text-dim);font:inherit;font-size:14px;font-weight:500;padding:8px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:.15s;}
+  nav.tabs button:hover,nav.tabs button.active{background:var(--surface-2);color:var(--text);}
+  .theme-btn{background:var(--surface);border:1px solid var(--border);color:var(--text-dim);width:36px;height:36px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:.15s;}
+  .theme-btn:hover{color:var(--text);border-color:var(--border-2);}
+
+  h1.page-title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:32px 0 4px;}
+  p.page-sub{color:var(--text-dim);margin:0 0 24px;font-size:14px;}
+
+  .pickers{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+  @media (max-width:760px){.pickers{grid-template-columns:1fr;}}
+  .picker-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+  .picker-card.slot1{border-top:3px solid var(--p1);}
+  .picker-card.slot2{border-top:3px solid var(--p2);}
+  .picker-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);font-weight:600;margin-bottom:8px;}
+  select{width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:9px 11px;font:inherit;font-size:14px;cursor:pointer;}
+  select:focus{outline:2px solid var(--accent);outline-offset:-1px;}
+  .filter-row{display:flex;gap:8px;margin-bottom:8px;}
+  .filter-row select{font-size:12.5px;padding:7px 9px;}
+  .player-season-row{display:grid;grid-template-columns:1fr 110px;gap:8px;}
+  .player-season-row select.season{font-size:13px;}
+
+  /* ---- info board ---- */
+  .infoboard{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;}
+  @media (max-width:760px){.infoboard{grid-template-columns:1fr;}}
+  .bio-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;gap:14px;align-items:flex-start;}
+  .bio-card.b1{border-left:3px solid var(--p1);}
+  .bio-card.b2{border-left:3px solid var(--p2);}
+  .avatar{width:56px;height:56px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;letter-spacing:-.02em;}
+  .avatar.a1{background:var(--p1-soft);color:var(--p1);border:1.5px solid var(--p1);}
+  .avatar.a2{background:var(--p2-soft);color:var(--p2);border:1.5px solid var(--p2);}
+  .bio-main{flex:1;min-width:0;}
+  .bio-name{font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.2;}
+  .bio-pos{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:5px;margin-top:4px;background:var(--surface-2);color:var(--text-dim);}
+  .bio-grid{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:9px;font-size:12.5px;}
+  .bio-grid .item{display:flex;gap:5px;}
+  .bio-grid .k{color:var(--text-faint);}
+  .bio-grid .v{color:var(--text);font-weight:600;}
+  .affil{display:flex;flex-direction:column;gap:6px;margin-top:11px;}
+  .affil-row{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+  .crest{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;color:#fff;letter-spacing:-.02em;}
+  .flag{font-size:17px;line-height:1;width:22px;text-align:center;flex-shrink:0;}
+  .affil-name{color:var(--text);font-weight:500;}
+  .affil-tag{font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-left:auto;}
+
+  /* ---- source checkboxes ---- */
+  .source-bar{display:flex;align-items:center;gap:18px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 16px;flex-wrap:wrap;}
+  .source-bar .lead{font-size:12px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;}
+  .chk{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;font-weight:500;user-select:none;}
+  .chk input{width:17px;height:17px;accent-color:var(--accent);cursor:pointer;}
+  .chk .badge{font-size:10.5px;color:var(--text-faint);}
+  .source-msg{font-size:12.5px;color:var(--text-dim);margin-left:auto;}
+
+  .vs-band{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:0 0 18px;}
+  .vs-side{font-size:13px;color:var(--text-dim);}
+  .vs-side.right{text-align:right;}
+  .vs-season-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;}
+  .vs-season-tag.s1{background:var(--p1-soft);color:var(--p1);}
+  .vs-season-tag.s2{background:var(--p2-soft);color:var(--p2);}
+  .vs-divider{font-size:13px;font-weight:700;color:var(--text-faint);}
+  .self-flag{text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin:-8px 0 16px;}
+
+  .stat-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:22px;}
+  table.stats{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.stats thead th{background:var(--surface-2);color:var(--text-faint);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;padding:9px 14px;text-align:center;}
+  table.stats thead th.lbl{text-align:left;}
+  table.stats td{padding:8px 14px;border-top:1px solid var(--border);text-align:center;}
+  table.stats td.lbl{text-align:left;color:var(--text-dim);font-weight:500;}
+  .group-row td{background:var(--surface-2);color:var(--text-faint);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding:6px 14px;text-align:left;border-top:1px solid var(--border);}
+  .val{font-weight:600;font-variant-numeric:tabular-nums;}
+  .val.dash{color:var(--text-faint);font-weight:400;}
+  .pct-pill{display:inline-block;min-width:26px;padding:1px 5px;border-radius:4px;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;margin-left:6px;}
+  .delta{font-size:11px;font-weight:600;margin-left:6px;font-variant-numeric:tabular-nums;}
+  .delta.up{color:var(--accent);} .delta.down{color:var(--p1);}
+
+  .radar-zone{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px;}
+  @media (max-width:760px){.radar-zone{grid-template-columns:1fr;}}
+  .radar-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px 18px;}
+  .radar-card.full{grid-column:1/-1;}
+  .radar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .radar-title{font-size:13px;font-weight:600;}
+  .radar-sub{font-size:11px;color:var(--text-faint);}
+  .radar-wrap{position:relative;width:100%;height:310px;}
+  .radar-foot{font-size:11px;color:var(--text-faint);text-align:center;margin-top:8px;}
+
+  .overlay-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;}
+  .overlay-bar .msg{font-size:13px;color:var(--text-dim);}
+  .toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;user-select:none;}
+  .toggle input{display:none;}
+  .toggle .track{width:38px;height:22px;border-radius:11px;background:var(--border-2);position:relative;transition:.15s;flex-shrink:0;}
+  .toggle .track::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s;}
+  .toggle input:checked + .track{background:var(--accent);}
+  .toggle input:checked + .track::after{transform:translateX(16px);}
+  .toggle.disabled{opacity:.4;cursor:not-allowed;}
+
+  .legend{display:flex;gap:18px;justify-content:center;margin-top:4px;font-size:12px;}
+  .legend span{display:flex;align-items:center;gap:6px;color:var(--text-dim);}
+  .legend .sw{width:11px;height:11px;border-radius:3px;}
+
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;align-items:center;}
+  .controls .grp{display:flex;flex-direction:column;gap:3px;}
+  .controls label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);font-weight:600;}
+  .controls select{font-size:13px;padding:7px 10px;min-width:120px;}
+  .count-pill{margin-left:auto;font-size:12.5px;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);padding:6px 12px;border-radius:20px;}
+
+  .lead-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;}
+  table.lead{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap;}
+  table.lead thead th{background:var(--surface-2);color:var(--text-dim);font-size:11px;font-weight:600;padding:10px 12px;text-align:right;cursor:pointer;user-select:none;position:sticky;top:0;}
+  table.lead thead th.lbl{text-align:left;}
+  table.lead thead th:hover{color:var(--text);}
+  table.lead thead th .arrow{color:var(--accent);margin-left:3px;}
+  table.lead td{padding:9px 12px;border-top:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;}
+  table.lead td.lbl{text-align:left;}
+  table.lead tbody tr:hover{background:var(--surface-2);}
+  .pname{font-weight:600;}
+  .pteam{font-size:11.5px;color:var(--text-faint);}
+  .pos-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;}
+  .pos-OH{background:rgba(55,135,221,.16);color:#2f7bcf;}
+  .pos-OPP{background:rgba(226,72,63,.16);color:#cf3d34;}
+  .pos-MB{background:rgba(29,158,117,.16);color:#178c66;}
+  .pos-S{background:rgba(186,117,23,.18);color:#9c6213;}
+  .pos-L{background:rgba(127,119,221,.18);color:#6a62cc;}
+
+  .note{font-size:12px;color:var(--text-faint);margin-top:14px;line-height:1.6;}
+  .note b{color:var(--text-dim);font-weight:600;}
+  .demo-banner{background:rgba(29,158,117,.1);border:1px solid rgba(29,158,117,.35);color:#178c66;font-size:12.5px;padding:8px 14px;border-radius:var(--radius-sm);margin:18px 0 0;display:flex;gap:8px;align-items:center;}
+  :root[data-theme="dark"] .demo-banner{color:#6fd3b0;}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">VolleyStat<span class="dot">.</span><span class="sub">demo data</span></div>
+    <nav class="tabs">
+      <button id="tab-compare" class="active" onclick="showPage('compare')">Compare</button>
+      <button id="tab-all" onclick="showPage('all')">All stats</button>
+    </nav>
+    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle theme">☀</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section id="page-compare">
+    <h1 class="page-title">Compare players</h1>
+    <p class="page-sub">Pick two players and a season for each. Tick club and/or country to choose which competitions feed the numbers. Combined uses a volume-weighted average, never a naive mean.</p>
+
+    <div class="pickers">
+      <div class="picker-card slot1">
+        <div class="picker-label">Player 1</div>
+        <div class="filter-row">
+          <select id="f1-pos" onchange="rebuildSelect(1)"><option value="">All positions</option></select>
+          <select id="f1-club" onchange="rebuildSelect(1)"><option value="">All clubs</option></select>
+        </div>
+        <div class="player-season-row">
+          <select id="sel1" onchange="onPlayerChange(1)"></select>
+          <select id="szn1" class="season" onchange="renderCompare()"></select>
+        </div>
+      </div>
+      <div class="picker-card slot2">
+        <div class="picker-label">Player 2</div>
+        <div class="filter-row">
+          <select id="f2-pos" onchange="rebuildSelect(2)"><option value="">All positions</option></select>
+          <select id="f2-club" onchange="rebuildSelect(2)"><option value="">All clubs</option></select>
+        </div>
+        <div class="player-season-row">
+          <select id="sel2" onchange="onPlayerChange(2)"></select>
+          <select id="szn2" class="season" onchange="renderCompare()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="infoboard" id="infoboard"></div>
+
+    <div class="source-bar">
+      <span class="lead">Include</span>
+      <label class="chk"><input type="checkbox" id="src-club" checked onchange="renderCompare()"> Club <span class="badge">(league)</span></label>
+      <label class="chk"><input type="checkbox" id="src-nt" checked onchange="renderCompare()"> Country <span class="badge">(VNL / Olympics / Worlds)</span></label>
+      <span class="source-msg" id="source-msg"></span>
+    </div>
+
+    <div class="vs-band" id="vs-band"></div>
+    <div class="self-flag hidden" id="self-flag"></div>
+    <div class="overlay-bar" id="overlay-bar"></div>
+    <div id="radar-area"></div>
+    <div class="stat-section" id="stat-table"></div>
+    <p class="note" id="compare-note"></p>
+  </section>
+
+  <section id="page-all" class="hidden">
+    <h1 class="page-title">All stats</h1>
+    <p class="page-sub">Filter and sort the full pool for one season (club league stats). Click any header to sort.</p>
+    <div class="controls">
+      <div class="grp"><label>Season</label><select id="all-season" onchange="renderLeaderboard()"></select></div>
+      <div class="grp"><label>Position</label><select id="all-pos" onchange="renderLeaderboard()">
+        <option value="">All positions</option><option value="OH">Outside (OH)</option><option value="OPP">Opposite (OPP)</option><option value="MB">Middle (MB)</option><option value="S">Setter (S)</option><option value="L">Libero (L)</option>
+      </select></div>
+      <div class="grp"><label>Club</label><select id="all-club" onchange="renderLeaderboard()"><option value="">All clubs</option></select></div>
+      <div class="count-pill" id="count-pill">—</div>
+    </div>
+    <div class="lead-wrap"><table class="lead" id="lead-table"></table></div>
+    <p class="note">Columns adapt to position — pick <b>Libero</b> and attack columns give way to reception and digs.</p>
+  </section>
+
+  <div class="demo-banner"><span>◆</span><span>All data fabricated for layout. Real players & clubs, invented numbers, bios, and crests (monogram placeholders stand in for real logos).</span></div>
+</div>
+
+<script>
+/* ============ MOCK DATA ============
+   Counts-first model: each player-competition-season row stores RAW TALLIES
+   (attempts/kills/errors/points/blocks/aces/digs/recAttempts/recPositive/...).
+   Rates (efficiency, per-set) are DERIVED at display time. This is what makes
+   "combine club + country" a correct volume-weighted blend rather than a mean.
+================================================================= */
+const SEASONS = ["2018/19","2019/20","2020/21","2021/22","2022/23","2023/24"];
+
+/* national-team event attached to each season (what competition that year held) */
+const NT_EVENT = {"2018/19":"VNL 2019","2019/20":"Olympics 2021","2020/21":"VNL 2021","2021/22":"VNL 2022","2022/23":"World Champs 2022","2023/24":"Olympics 2024"};
+
+const CLUB_INFO = {
+  "Milano":{full:"Allianz Powervolley Milano",color:"#d4122a"},
+  "Modena":{full:"Valsa Group Modena",color:"#f4c20d"},
+  "Verona":{full:"Rana Verona",color:"#1a5fb4"},
+  "Trento":{full:"Itas Trentino",color:"#1e88c7"},
+  "Piacenza":{full:"Gas Sales Piacenza",color:"#e8501f"},
+  "Perugia":{full:"Sir Susa Perugia",color:"#7b2d8e"},
+  "Padova":{full:"Pallavolo Padova",color:"#c01c2e"},
+  "Siena":{full:"Emma Villas Siena",color:"#1d9e75"},
+  "Cucine Lube":{full:"Cucine Lube Civitanova",color:"#9c1d2b"},
+  "Funvic":{full:"Funvic Taubaté",color:"#0d5fae"},
+};
+const NAT_INFO = {
+  JPN:{full:"Japan",flag:"🇯🇵"}, ITA:{full:"Italy",flag:"🇮🇹"}, BRA:{full:"Brazil",flag:"🇧🇷"},
+  POL:{full:"Poland",flag:"🇵🇱"}, TUN:{full:"Tunisia",flag:"🇹🇳"}, FRA:{full:"France",flag:"🇫🇷"},
+  SRB:{full:"Serbia",flag:"🇷🇸"}, ARG:{full:"Argentina",flag:"🇦🇷"},
+};
+
+/* META now carries bio: height(cm), weight(kg), birthday */
+const META = {
+  1:{name:"Yuki Ishikawa",nat:"JPN",pos:"OH",grp:"attacker",h:192,w:84,dob:"1995-12-11"},
+  2:{name:"Tommaso Rinaldi",nat:"ITA",pos:"OH",grp:"attacker",h:200,w:90,dob:"2002-02-13"},
+  3:{name:"Wassim Ben Tara",nat:"TUN",pos:"OH",grp:"attacker",h:200,w:95,dob:"1994-12-29"},
+  4:{name:"Daniele Lavia",nat:"ITA",pos:"OH",grp:"attacker",h:200,w:88,dob:"1999-06-08"},
+  5:{name:"Darlan Souza",nat:"BRA",pos:"OPP",grp:"attacker",h:202,w:92,dob:"2000-08-21"},
+  6:{name:"Kamil Semeniuk",nat:"POL",pos:"OPP",grp:"attacker",h:198,w:89,dob:"1996-04-04"},
+  7:{name:"Yuri Romanò",nat:"ITA",pos:"OPP",grp:"attacker",h:202,w:91,dob:"1997-04-23"},
+  8:{name:"Roberto Russo",nat:"ITA",pos:"MB",grp:"attacker",h:205,w:93,dob:"1995-08-13"},
+  9:{name:"Jean Patry",nat:"FRA",pos:"MB",grp:"attacker",h:203,w:98,dob:"1996-06-29"},
+  10:{name:"Srećko Lisinac",nat:"SRB",pos:"MB",grp:"attacker",h:205,w:96,dob:"1992-02-26"},
+  11:{name:"Simone Giannelli",nat:"ITA",pos:"S",grp:"setter",h:200,w:86,dob:"1996-08-09"},
+  12:{name:"Riccardo Sbertoli",nat:"ITA",pos:"S",grp:"setter",h:188,w:80,dob:"1998-04-24"},
+  13:{name:"Luciano De Cecco",nat:"ARG",pos:"S",grp:"setter",h:198,w:88,dob:"1988-06-06"},
+  14:{name:"Fabio Balaso",nat:"ITA",pos:"L",grp:"libero",h:182,w:76,dob:"1995-07-31"},
+  15:{name:"Massimo Colaci",nat:"ITA",pos:"L",grp:"libero",h:180,w:74,dob:"1985-08-10"},
+  16:{name:"Leonardo Scanferla",nat:"ITA",pos:"L",grp:"libero",h:181,w:75,dob:"1999-03-15"},
+};
+
+/* --- helpers to turn target rates into raw counts for a given sets count --- */
+function attackerCounts(sets, r, ntScale){
+  // ntScale<1 => national-team sample is smaller (fewer sets already in `sets`)
+  const attempts = Math.round(sets * (r.atkAttSet||8.5));
+  const kills = Math.round(attempts * r.kill);
+  const errors = Math.round(attempts * (r.kill - r.attEff)); // attEff = kill - err
+  const points = Math.round(sets * r.ptsSet);
+  return {
+    sets, src:"x", atkAttempts:attempts, atkKills:kills, atkErrors:Math.max(0,errors),
+    points, blocks:Math.round(sets*r.blkSet), aces:Math.round(sets*r.aceSet),
+    digs:Math.round(sets*r.digSet),
+    recAtt:Math.round(sets*(r.recAttSet||3.0)), recPos:0, recPerf:0, recErr:Math.round(sets*(r.recErrSet||0)),
+    _r:r
+  };
+}
+function fillReception(c){
+  c.recPos = Math.round(c.recAtt * c._r.recPos);
+  c.recPerf = Math.round(c.recAtt * c._r.recPerf);
+  return c;
+}
+function setterCounts(sets,r){
+  const c=attackerCounts(sets,Object.assign({atkAttSet:1.2},r));
+  c.assists=Math.round(sets*r.assSet); c.assTouches=Math.round(c.assists/Math.max(.01,r.setEff)); c._r=r;
+  return fillReception(c);
+}
+function liberoCounts(sets,r){
+  return {sets,src:"x",recAtt:Math.round(sets*4.2),recPos:0,recPerf:0,recErr:Math.round(sets*r.recErrSet),
+    digs:Math.round(sets*r.digSet), involve:r.involve, srEff:r.srEff, _r:r,
+    get recPosCalc(){return 0;}};
+}
+
+/* Build rows. For headline players (Ishikawa=1, Darlan=5) we add real NT rows.
+   Others get club-only across seasons (NT optional/omitted = checkbox still works,
+   just shows club). */
+const rows = [];
+function pushRow(pid, season, type, club, counts){
+  counts.src = type; counts.club = (type==='club'? club : null);
+  rows.push(Object.assign({pid, season, type}, counts));
+}
+
+/* ---- Ishikawa club arc (improving) + NT rows (smaller sample) ---- */
+const ISK_CLUB = {
+  "2018/19":{club:"Siena",sets:92, attEff:.441,kill:.43,ptsSet:3.5,blkSet:.34,aceSet:.29,recPos:.54,recPerf:.30,digSet:1.6,recErrSet:.24,recAttSet:3.4},
+  "2019/20":{club:"Padova",sets:96,attEff:.468,kill:.45,ptsSet:3.7,blkSet:.37,aceSet:.31,recPos:.57,recPerf:.33,digSet:1.7,recErrSet:.21,recAttSet:3.4},
+  "2020/21":{club:"Padova",sets:98,attEff:.482,kill:.46,ptsSet:3.9,blkSet:.39,aceSet:.33,recPos:.59,recPerf:.35,digSet:1.8,recErrSet:.20,recAttSet:3.4},
+  "2021/22":{club:"Milano",sets:100,attEff:.497,kill:.48,ptsSet:4.0,blkSet:.40,aceSet:.33,recPos:.60,recPerf:.36,digSet:1.9,recErrSet:.19,recAttSet:3.4},
+  "2022/23":{club:"Milano",sets:102,attEff:.505,kill:.48,ptsSet:4.1,blkSet:.41,aceSet:.34,recPos:.61,recPerf:.37,digSet:1.9,recErrSet:.18,recAttSet:3.4},
+  "2023/24":{club:"Milano",sets:98, attEff:.512,kill:.49,ptsSet:4.2,blkSet:.42,aceSet:.34,recPos:.61,recPerf:.38,digSet:1.9,recErrSet:.18,recAttSet:3.4},
+};
+const ISK_NT = { // higher level of play vs world's best => slightly lower efficiency, small sample
+  "2019/20":{sets:24,attEff:.430,kill:.44,ptsSet:3.4,blkSet:.33,aceSet:.30,recPos:.55,recPerf:.31,digSet:1.8,recErrSet:.22,recAttSet:3.8},
+  "2021/22":{sets:20,attEff:.455,kill:.45,ptsSet:3.6,blkSet:.34,aceSet:.33,recPos:.57,recPerf:.32,digSet:1.9,recErrSet:.20,recAttSet:3.8},
+  "2022/23":{sets:18,attEff:.448,kill:.45,ptsSet:3.7,blkSet:.31,aceSet:.34,recPos:.56,recPerf:.30,digSet:2.0,recErrSet:.21,recAttSet:3.9},
+  "2023/24":{sets:22,attEff:.462,kill:.46,ptsSet:3.8,blkSet:.35,aceSet:.32,recPos:.58,recPerf:.33,digSet:1.9,recErrSet:.19,recAttSet:3.8},
+};
+SEASONS.forEach(s=>{
+  const c=ISK_CLUB[s]; pushRow(1,s,"club",c.club, fillReception(attackerCounts(c.sets,c)));
+  if(ISK_NT[s]) pushRow(1,s,"nt",null, fillReception(attackerCounts(ISK_NT[s].sets,ISK_NT[s])));
+});
+
+/* ---- Darlan club arc (peak 20/21-21/22) + NT rows ---- */
+const DAR_CLUB = {
+  "2018/19":{club:"Funvic",sets:80,attEff:.452,kill:.46,ptsSet:4.7,blkSet:.42,aceSet:.40,recPos:.13,recPerf:.05,digSet:.9,recErrSet:.06,recAttSet:.6},
+  "2019/20":{club:"Funvic",sets:84,attEff:.471,kill:.47,ptsSet:5.0,blkSet:.46,aceSet:.43,recPos:.12,recPerf:.04,digSet:.9,recErrSet:.05,recAttSet:.6},
+  "2020/21":{club:"Cucine Lube",sets:90,attEff:.498,kill:.50,ptsSet:5.4,blkSet:.52,aceSet:.48,recPos:.12,recPerf:.04,digSet:.8,recErrSet:.05,recAttSet:.6},
+  "2021/22":{club:"Cucine Lube",sets:94,attEff:.501,kill:.50,ptsSet:5.5,blkSet:.53,aceSet:.47,recPos:.11,recPerf:.04,digSet:.8,recErrSet:.05,recAttSet:.6},
+  "2022/23":{club:"Piacenza",sets:96,attEff:.494,kill:.50,ptsSet:5.3,blkSet:.51,aceSet:.46,recPos:.12,recPerf:.04,digSet:.9,recErrSet:.05,recAttSet:.6},
+  "2023/24":{club:"Piacenza",sets:92,attEff:.488,kill:.49,ptsSet:5.2,blkSet:.49,aceSet:.44,recPos:.12,recPerf:.04,digSet:.9,recErrSet:.05,recAttSet:.6},
+};
+const DAR_NT = {
+  "2019/20":{sets:22,attEff:.460,kill:.47,ptsSet:5.1,blkSet:.44,aceSet:.42,recPos:.10,recPerf:.03,digSet:.8,recErrSet:.05,recAttSet:.7},
+  "2021/22":{sets:20,attEff:.485,kill:.49,ptsSet:5.6,blkSet:.50,aceSet:.45,recPos:.11,recPerf:.04,digSet:.8,recErrSet:.05,recAttSet:.7},
+  "2022/23":{sets:18,attEff:.478,kill:.49,ptsSet:5.4,blkSet:.48,aceSet:.44,recPos:.10,recPerf:.03,digSet:.9,recErrSet:.05,recAttSet:.7},
+  "2023/24":{sets:24,attEff:.470,kill:.48,ptsSet:5.3,blkSet:.47,aceSet:.43,recPos:.11,recPerf:.04,digSet:.9,recErrSet:.05,recAttSet:.7},
+};
+SEASONS.forEach(s=>{
+  const c=DAR_CLUB[s]; pushRow(5,s,"club",c.club, fillReception(attackerCounts(c.sets,c)));
+  if(DAR_NT[s]) pushRow(5,s,"nt",null, fillReception(attackerCounts(DAR_NT[s].sets,DAR_NT[s])));
+});
+
+/* ---- remaining players: club-only, synthesized across seasons ---- */
+const ANCHOR = {
+  2:{club:"Modena",attEff:.466,kill:.45,ptsSet:3.8,blkSet:.39,aceSet:.41,recPos:.55,recPerf:.31,digSet:1.6,recErrSet:.22,recAttSet:3.3},
+  3:{club:"Verona",attEff:.438,kill:.44,ptsSet:4.6,blkSet:.31,aceSet:.52,recPos:.48,recPerf:.24,digSet:1.4,recErrSet:.29,recAttSet:3.3},
+  4:{club:"Trento",attEff:.488,kill:.47,ptsSet:4.0,blkSet:.44,aceSet:.37,recPos:.64,recPerf:.41,digSet:2.1,recErrSet:.15,recAttSet:3.5},
+  6:{club:"Perugia",attEff:.521,kill:.51,ptsSet:5.0,blkSet:.55,aceSet:.39,recPos:.14,recPerf:.05,digSet:.8,recErrSet:.06,recAttSet:.6},
+  7:{club:"Piacenza",attEff:.476,kill:.48,ptsSet:5.6,blkSet:.43,aceSet:.34,recPos:.09,recPerf:.03,digSet:.7,recErrSet:.04,recAttSet:.5},
+  8:{club:"Milano",attEff:.612,kill:.62,ptsSet:2.4,blkSet:.92,aceSet:.21,recPos:.05,recPerf:.01,digSet:.4,recErrSet:.02,recAttSet:.2,atkAttSet:3.6},
+  9:{club:"Trento",attEff:.588,kill:.59,ptsSet:2.1,blkSet:.84,aceSet:.18,recPos:.04,recPerf:.01,digSet:.3,recErrSet:.02,recAttSet:.2,atkAttSet:3.4},
+  10:{club:"Trento",attEff:.641,kill:.65,ptsSet:2.6,blkSet:1.04,aceSet:.24,recPos:.06,recPerf:.02,digSet:.5,recErrSet:.03,recAttSet:.2,atkAttSet:3.8},
+  11:{club:"Perugia",assSet:9.4,setEff:.54,attEff:.30,kill:.30,ptsSet:.6,blkSet:.58,aceSet:.31,recPos:.10,recPerf:.03,digSet:1.5,recErrSet:.10,recAttSet:.9},
+  12:{club:"Milano",assSet:8.9,setEff:.49,attEff:.25,kill:.25,ptsSet:.5,blkSet:.46,aceSet:.27,recPos:.09,recPerf:.02,digSet:1.7,recErrSet:.12,recAttSet:1.0},
+  13:{club:"Modena",assSet:9.7,setEff:.57,attEff:.28,kill:.28,ptsSet:.4,blkSet:.41,aceSet:.19,recPos:.08,recPerf:.02,digSet:1.4,recErrSet:.11,recAttSet:.8},
+  14:{club:"Trento",recPos:.72,recPerf:.51,digSet:3.4,recErrSet:.08,involve:.88,srEff:.55},
+  15:{club:"Milano",recPos:.66,recPerf:.44,digSet:3.0,recErrSet:.11,involve:.81,srEff:.48},
+  16:{club:"Piacenza",recPos:.69,recPerf:.47,digSet:3.7,recErrSet:.09,involve:.85,srEff:.52},
+};
+function decayRate(v,i,key){ const age=5-i;
+  if(key==="recErrSet") return +(v*(1+age*0.02)).toFixed(3);
+  return Math.max(0,+(v*(1-age*0.018)).toFixed(3));
+}
+Object.keys(ANCHOR).forEach(pidStr=>{
+  const pid=+pidStr, a=ANCHOR[pid], grp=META[pid].grp;
+  SEASONS.forEach((season,i)=>{
+    const r={}; Object.keys(a).forEach(k=>{ r[k]= (typeof a[k]==="number")? decayRate(a[k],i,k) : a[k]; });
+    const sets=88+i*2;
+    let counts;
+    if(grp==="setter") counts=setterCounts(sets,r);
+    else if(grp==="libero") counts=fillReception(liberoCounts(sets,r));
+    else counts=fillReception(attackerCounts(sets,r));
+    pushRow(pid,season,"club",a.club,counts);
+  });
+});
+
+const POS_LABEL={OH:"Outside hitter",OPP:"Opposite",MB:"Middle blocker",S:"Setter",L:"Libero"};
+
+/* ============ DERIVE rates from a set of summed counts ============ */
+function aggregate(pid, season, useClub, useNT){
+  const rs = rows.filter(r=>r.pid===pid && r.season===season &&
+    ((useClub && r.type==="club") || (useNT && r.type==="nt")));
+  if(rs.length===0) return null;
+  const sum={};
+  const numKeys=["sets","atkAttempts","atkKills","atkErrors","points","blocks","aces","digs","recAtt","recPos","recPerf","recErr","assists","assTouches"];
+  numKeys.forEach(k=> sum[k]=rs.reduce((t,r)=>t+(r[k]||0),0));
+  // involvement/srEff (libero only) — volume(set)-weighted average
+  const wsum=(k)=> rs.reduce((t,r)=> t + ((r[k]||0)*(r.sets||0)),0) / Math.max(1, rs.reduce((t,r)=>t+(r.sets||0),0));
+  sum.involve = rs.some(r=>r.involve!=null)? wsum("involve"):null;
+  sum.srEff = rs.some(r=>r.srEff!=null)? wsum("srEff"):null;
+  // derived rates from summed counts (correct weighted blend)
+  const d={pid,season,sets:sum.sets,
+    attEff: sum.atkAttempts? (sum.atkKills-sum.atkErrors)/sum.atkAttempts : null,
+    kill: sum.atkAttempts? sum.atkKills/sum.atkAttempts : null,
+    ptsSet: sum.sets? sum.points/sum.sets : null,
+    blkSet: sum.sets? sum.blocks/sum.sets : null,
+    aceSet: sum.sets? sum.aces/sum.sets : null,
+    digSet: sum.sets? sum.digs/sum.sets : null,
+    recPos: sum.recAtt? sum.recPos/sum.recAtt : null,
+    recPerf: sum.recAtt? sum.recPerf/sum.recAtt : null,
+    recErrSet: sum.sets? sum.recErr/sum.sets : null,
+    assSet: sum.sets&&sum.assists? sum.assists/sum.sets : null,
+    setEff: sum.assTouches? sum.assists/sum.assTouches : null,
+    involve: sum.involve, srEff: sum.srEff,
+    _sources: rs.map(r=>r.type)
+  };
+  return d;
+}
+function hasNT(pid, season){ return rows.some(r=>r.pid===pid && r.season===season && r.type==="nt"); }
+
+/* ---- percentile within (season, group) using CLUB rows only as the cohort ---- */
+function pctRank(d, field, invert=false){
+  const g=META[d.pid].grp;
+  // cohort: every player's club aggregate for that season (stable reference pool)
+  const peers = Object.keys(META).map(Number).filter(p=>META[p].grp===g)
+    .map(p=>aggregate(p,d.season,true,false)).filter(x=>x && x[field]!=null);
+  if(peers.length<2 || d[field]==null) return null;
+  const below=peers.filter(x=> invert? x[field]>d[field] : x[field]<d[field]).length;
+  return Math.round((below/(peers.length-1))*100);
+}
+
+/* ---- radar axis defs: each has a fixed scale max for raw->0..100 mapping ---- */
+const RADARS={
+  attacker:{label:"Attacker radar",axes:[
+    {key:"attEff",name:"Attack eff",max:.65,fmt:"pct"},
+    {key:"kill",name:"Kill %",max:.70,fmt:"pct"},
+    {key:"blkSet",name:"Block/set",max:1.1,fmt:"num"},
+    {key:"aceSet",name:"Ace/set",max:.6,fmt:"num"},
+    {key:"recPos",name:"Reception+",max:.75,fmt:"pct"},
+    {key:"ptsSet",name:"Points/set",max:6,fmt:"num"} ]},
+  setter:{label:"Setter radar",axes:[
+    {key:"assSet",name:"Assists/set",max:11,fmt:"num"},
+    {key:"setEff",name:"Set eff",max:.6,fmt:"pct"},
+    {key:"digSet",name:"Dig/set",max:2.2,fmt:"num"},
+    {key:"blkSet",name:"Block/set",max:.7,fmt:"num"},
+    {key:"aceSet",name:"Ace/set",max:.4,fmt:"num"},
+    {key:"recPos",name:"Reception+",max:.2,fmt:"pct"} ]},
+  libero:{label:"Libero radar",axes:[
+    {key:"recPos",name:"Reception+",max:.8,fmt:"pct"},
+    {key:"recPerf",name:"Perfect %",max:.6,fmt:"pct"},
+    {key:"digSet",name:"Dig/set",max:4,fmt:"num"},
+    {key:"recErrSet",name:"Few errors",max:.2,fmt:"num",invert:true},
+    {key:"involve",name:"Involvement",max:1,fmt:"pct"},
+    {key:"srEff",name:"SR eff",max:.7,fmt:"pct"} ]}
+};
+
+const STAT_GROUPS=[
+  {title:"Attacking",rows:[
+    {key:"attEff",label:"Attack efficiency",fmt:"pct"},
+    {key:"kill",label:"Kill %",fmt:"pct"},
+    {key:"ptsSet",label:"Points / set",fmt:"num"} ]},
+  {title:"Serve & block",rows:[
+    {key:"aceSet",label:"Aces / set",fmt:"num"},
+    {key:"blkSet",label:"Blocks / set",fmt:"num"} ]},
+  {title:"Reception & defense",rows:[
+    {key:"recPos",label:"Reception positive %",fmt:"pct"},
+    {key:"recPerf",label:"Reception perfect %",fmt:"pct"},
+    {key:"digSet",label:"Digs / set",fmt:"num"},
+    {key:"recErrSet",label:"Reception errors / set",fmt:"num",lowGood:true} ]},
+  {title:"Setting",rows:[
+    {key:"assSet",label:"Assists / set",fmt:"num"},
+    {key:"setEff",label:"Setting efficiency",fmt:"pct"} ]},
+];
+
+/* ============ STATE ============ */
+let chartIndiv1=null,chartIndiv2=null,chartOverlay=null;
+let overlayOn=false, sortField="ptsSet", sortDir=-1;
+
+/* ============ HELPERS ============ */
+function initials(n){return n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();}
+function lastName(n){return n.split(" ").slice(-1)[0];}
+function fmtVal(v,fmt){if(v==null)return null;if(fmt==="pct")return(v*100).toFixed(0)+"%";return v.toFixed(v<1?2:1);}
+function age(dob){const d=new Date(dob),n=new Date("2024-06-01");let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
+function fmtDob(dob){const d=new Date(dob);return d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});}
+function clubCrest(club){const info=CLUB_INFO[club]||{color:"#666"};const letters=club.replace("Cucine ","").slice(0,2).toUpperCase();return `<span class="crest" style="background:${info.color}">${letters}</span>`;}
+function pctColor(p){if(p==null)return"transparent";if(p>=80)return"rgba(29,158,117,.22)";if(p>=60)return"rgba(29,158,117,.13)";if(p>=40)return"rgba(139,151,167,.13)";if(p>=20)return"rgba(186,117,23,.16)";return"rgba(226,72,63,.16)";}
+function pctTextColor(p){if(p>=60)return"#178c66";if(p>=40)return"#8b97a7";if(p>=20)return"#9c6213";return"#cf3d34";}
+function uniq(a){return[...new Set(a)].sort();}
+
+/* ============ THEME ============ */
+function toggleTheme(){const root=document.documentElement;const next=root.getAttribute("data-theme")==="dark"?"light":"dark";root.setAttribute("data-theme",next);document.getElementById("theme-btn").textContent=next==="dark"?"☀":"☾";if(!document.getElementById("page-compare").classList.contains("hidden"))renderCompare();}
+function themeColors(){const dark=document.documentElement.getAttribute("data-theme")==="dark";return{grid:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.09)",label:dark?"#8b97a7":"#5b6573"};}
+
+/* ============ SELECTS ============ */
+function fillStaticSelects(){
+  [1,2].forEach(slot=>{
+    const posSel=document.getElementById(`f${slot}-pos`),clubSel=document.getElementById(`f${slot}-club`);
+    Object.keys(POS_LABEL).forEach(p=>posSel.insertAdjacentHTML("beforeend",`<option value="${p}">${POS_LABEL[p]}</option>`));
+    uniq(rows.filter(r=>r.club).map(r=>r.club)).forEach(c=>clubSel.insertAdjacentHTML("beforeend",`<option value="${c}">${CLUB_INFO[c]?.full||c}</option>`));
+  });
+  const allClub=document.getElementById("all-club");
+  uniq(rows.filter(r=>r.club).map(r=>r.club)).forEach(c=>allClub.insertAdjacentHTML("beforeend",`<option value="${c}">${CLUB_INFO[c]?.full||c}</option>`));
+  const allSeason=document.getElementById("all-season");
+  [...SEASONS].reverse().forEach(s=>allSeason.insertAdjacentHTML("beforeend",`<option value="${s}">${s}</option>`));
+}
+function seasonsFor(pid){return SEASONS.filter(s=>rows.some(r=>r.pid===pid && r.season===s));}
+function rebuildSelect(slot){
+  const pos=document.getElementById(`f${slot}-pos`).value,club=document.getElementById(`f${slot}-club`).value;
+  const sel=document.getElementById(`sel${slot}`),prev=sel.value;
+  const pids=uniq(Object.keys(META).map(Number).filter(pid=>{
+    if(pos&&META[pid].pos!==pos)return false;
+    if(club&&!rows.some(r=>r.pid===pid&&r.club===club))return false;
+    return true;
+  }));
+  sel.innerHTML=pids.map(pid=>`<option value="${pid}">${META[pid].name} · ${META[pid].pos}</option>`).join("");
+  if(pids.map(String).includes(prev))sel.value=prev;
+  onPlayerChange(slot);
+}
+function onPlayerChange(slot){
+  const pid=+document.getElementById(`sel${slot}`).value;
+  const sznSel=document.getElementById(`szn${slot}`),prev=sznSel.value;
+  const avail=seasonsFor(pid);
+  sznSel.innerHTML=[...avail].reverse().map(s=>`<option value="${s}">${s}</option>`).join("");
+  if(avail.includes(prev))sznSel.value=prev;
+  renderCompare();
+}
+
+/* ============ COMPARE ============ */
+function currentSources(){return{club:document.getElementById("src-club").checked,nt:document.getElementById("src-nt").checked};}
+function getAgg(slot){
+  const pid=+document.getElementById(`sel${slot}`).value;
+  const season=document.getElementById(`szn${slot}`).value;
+  const s=currentSources();
+  let d=aggregate(pid,season,s.club,s.nt);
+  if(!d) d=aggregate(pid,season,true,true); // fallback so UI never empties
+  return d;
+}
+
+function renderInfoBoard(d1,d2){
+  const card=(d,cls,acls)=>{
+    const m=META[d.pid];
+    const clubRow=rows.find(r=>r.pid===d.pid&&r.season===d.season&&r.type==="club");
+    const club=clubRow?clubRow.club:null;
+    const ntEvent=NT_EVENT[d.season];
+    const nat=NAT_INFO[m.nat];
+    return `<div class="bio-card ${cls}">
+      <div class="avatar ${acls}">${initials(m.name)}</div>
+      <div class="bio-main">
+        <div class="bio-name">${m.name}</div>
+        <span class="bio-pos">${POS_LABEL[m.pos]}</span>
+        <div class="bio-grid">
+          <span class="item"><span class="k">Height</span><span class="v">${m.h} cm</span></span>
+          <span class="item"><span class="k">Weight</span><span class="v">${m.w} kg</span></span>
+          <span class="item"><span class="k">Born</span><span class="v">${fmtDob(m.dob)}</span></span>
+          <span class="item"><span class="k">Age</span><span class="v">${age(m.dob)}</span></span>
+        </div>
+        <div class="affil">
+          ${club?`<div class="affil-row">${clubCrest(club)}<span class="affil-name">${CLUB_INFO[club]?.full||club}</span><span class="affil-tag">Club</span></div>`:""}
+          <div class="affil-row"><span class="flag">${nat.flag}</span><span class="affil-name">${nat.full}</span><span class="affil-tag">${hasNT(d.pid,d.season)?ntEvent:"National team"}</span></div>
+        </div>
+      </div>
+    </div>`;
+  };
+  document.getElementById("infoboard").innerHTML=card(d1,"b1","a1")+card(d2,"b2","a2");
+}
+
+function renderSourceMsg(d1,d2){
+  const s=currentSources();
+  const msg=document.getElementById("source-msg");
+  if(!s.club&&!s.nt){msg.textContent="Pick at least one source — showing all by default.";return;}
+  const label=s.club&&s.nt?"club + country (weighted)":s.club?"club only":"country only";
+  const setsNote=`P1 ${d1.sets} sets · P2 ${d2.sets} sets`;
+  msg.textContent=`Showing ${label}. ${setsNote}`;
+}
+
+function renderVsBand(d1,d2){
+  document.getElementById("vs-band").innerHTML=`
+    <div class="vs-side">${lastName(META[d1.pid].name)} <span class="vs-season-tag s1">${d1.season}</span></div>
+    <div class="vs-divider">VS</div>
+    <div class="vs-side right"><span class="vs-season-tag s2">${d2.season}</span> ${lastName(META[d2.pid].name)}</div>`;
+  const flag=document.getElementById("self-flag");
+  if(d1.pid===d2.pid){flag.classList.remove("hidden");
+    const order=SEASONS.indexOf(d1.season)<SEASONS.indexOf(d2.season);
+    flag.textContent=`Same player across seasons — ${order?d1.season+" → "+d2.season:d2.season+" → "+d1.season}. Δ shows raw change.`;
+  }else flag.classList.add("hidden");
+}
+
+function renderStatTable(d1,d2){
+  const selfMode=d1.pid===d2.pid;
+  let html=`<table class="stats"><thead><tr><th class="lbl">Statistic</th>
+    <th>${lastName(META[d1.pid].name)} ${d1.season.slice(2)}</th>
+    <th>${lastName(META[d2.pid].name)} ${d2.season.slice(2)}</th></tr></thead><tbody>`;
+  STAT_GROUPS.forEach(g=>{
+    const anyVal=g.rows.some(r=> d1[r.key]!=null || d2[r.key]!=null);
+    if(!anyVal)return;
+    html+=`<tr class="group-row"><td colspan="3">${g.title}</td></tr>`;
+    g.rows.forEach(r=>{
+      const v1=d1[r.key],v2=d2[r.key];
+      const has1=v1!=null,has2=v2!=null;
+      const laterIs2=SEASONS.indexOf(d2.season)>=SEASONS.indexOf(d1.season);
+      const cell=(d,has,v,other,showDelta)=>{
+        if(!has)return`<td><span class="val dash">—</span></td>`;
+        const pc=pctRank(d,r.key,!!r.lowGood);
+        const pill=pc==null?"":`<span class="pct-pill" style="background:${pctColor(pc)};color:${pctTextColor(pc)}">${pc}</span>`;
+        let deltaHtml="";
+        if(selfMode&&showDelta&&other!=null){const diff=v-other;if(Math.abs(diff)>1e-9){const better=r.lowGood?diff<0:diff>0;deltaHtml=`<span class="delta ${better?'up':'down'}">${diff>0?"▲":"▼"}${fmtVal(Math.abs(diff),r.fmt)}</span>`;}}
+        return`<td><span class="val">${fmtVal(v,r.fmt)}</span>${pill}${deltaHtml}</td>`;
+      };
+      html+=`<tr><td class="lbl">${r.label}</td>
+        ${cell(d1,has1,v1,v2,selfMode&&!laterIs2)}
+        ${cell(d2,has2,v2,v1,selfMode&&laterIs2)}</tr>`;
+    });
+  });
+  html+=`</tbody></table>`;
+  document.getElementById("stat-table").innerHTML=html;
+}
+
+/* radar uses RAW value mapped to axis.max -> 0..100 (shape = true performance) */
+function radarRaw(d){return RADARS[META[d.pid].grp].axes.map(a=>{const v=d[a.key];if(v==null)return 0;return Math.max(0,Math.min(100,Math.round((v/a.max)*100)));});}
+function radarLabels(grp){return RADARS[grp].axes.map(a=>a.name);}
+function radarTooltipVals(d){return RADARS[META[d.pid].grp].axes.map(a=>{const v=d[a.key];const pc=pctRank(d,a.key,!!a.invert);return{raw:fmtVal(v,a.fmt),pct:pc};});}
+
+function radarOpts(metaForTip){
+  const tc=themeColors();
+  return{responsive:true,maintainAspectRatio:false,
+    scales:{r:{min:0,max:100,ticks:{display:false,stepSize:25},grid:{color:tc.grid},angleLines:{color:tc.grid},pointLabels:{color:tc.label,font:{size:11}}}},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>{const t=metaForTip[c.datasetIndex][c.dataIndex];return ` ${t.raw}${t.pct!=null?"  ·  "+t.pct+" pctl":""}`;}}}},
+    elements:{line:{borderWidth:2},point:{radius:2}}};
+}
+function makeRadar(id,datasets,labels,tipMeta){return new Chart(document.getElementById(id),{type:"radar",data:{labels,datasets},options:radarOpts(tipMeta)});}
+function destroyCharts(){[chartIndiv1,chartIndiv2,chartOverlay].forEach(c=>{if(c)c.destroy();});chartIndiv1=chartIndiv2=chartOverlay=null;}
+function sLabel(d){return`${lastName(META[d.pid].name)} ${d.season}`;}
+
+function renderRadars(d1,d2){
+  destroyCharts();
+  const area=document.getElementById("radar-area");
+  const g1=META[d1.pid].grp,g2=META[d2.pid].grp,same=g1===g2;
+  if(overlayOn&&same){
+    area.innerHTML=`<div class="radar-zone"><div class="radar-card full">
+      <div class="radar-head"><span class="radar-title">${RADARS[g1].label} — overlay</span><span class="radar-sub">raw values on fixed scale</span></div>
+      <div class="radar-wrap"><canvas id="rOverlay" role="img" aria-label="Overlaid radar"></canvas></div>
+      <div class="legend"><span><span class="sw" style="background:var(--p1)"></span>${sLabel(d1)}</span><span><span class="sw" style="background:var(--p2)"></span>${sLabel(d2)}</span></div>
+      <div class="radar-foot">Shape = raw performance. Hover a point for raw value + season percentile.</div>
+    </div></div>`;
+    chartOverlay=makeRadar("rOverlay",[
+      {label:sLabel(d1),data:radarRaw(d1),borderColor:"#e2483f",backgroundColor:"rgba(226,72,63,.25)",pointBackgroundColor:"#e2483f"},
+      {label:sLabel(d2),data:radarRaw(d2),borderColor:"#3787dd",backgroundColor:"rgba(55,135,221,.25)",pointBackgroundColor:"#3787dd"}
+    ],radarLabels(g1),[radarTooltipVals(d1),radarTooltipVals(d2)]);
+  }else{
+    area.innerHTML=`<div class="radar-zone">
+      <div class="radar-card"><div class="radar-head"><span class="radar-title">${sLabel(d1)}</span><span class="radar-sub">${RADARS[g1].label}</span></div>
+        <div class="radar-wrap"><canvas id="rIndiv1" role="img" aria-label="Player 1 radar"></canvas></div>
+        <div class="radar-foot">Hover: raw value + season percentile</div></div>
+      <div class="radar-card"><div class="radar-head"><span class="radar-title">${sLabel(d2)}</span><span class="radar-sub">${RADARS[g2].label}</span></div>
+        <div class="radar-wrap"><canvas id="rIndiv2" role="img" aria-label="Player 2 radar"></canvas></div>
+        <div class="radar-foot">Hover: raw value + season percentile</div></div>
+    </div>`;
+    chartIndiv1=makeRadar("rIndiv1",[{label:sLabel(d1),data:radarRaw(d1),borderColor:"#e2483f",backgroundColor:"rgba(226,72,63,.22)",pointBackgroundColor:"#e2483f"}],radarLabels(g1),[radarTooltipVals(d1)]);
+    chartIndiv2=makeRadar("rIndiv2",[{label:sLabel(d2),data:radarRaw(d2),borderColor:"#3787dd",backgroundColor:"rgba(55,135,221,.22)",pointBackgroundColor:"#3787dd"}],radarLabels(g2),[radarTooltipVals(d2)]);
+  }
+}
+
+function renderOverlayBar(d1,d2){
+  const bar=document.getElementById("overlay-bar");
+  const g1=META[d1.pid].grp,g2=META[d2.pid].grp,selfMode=d1.pid===d2.pid;
+  if(g1===g2){
+    bar.innerHTML=`<label class="toggle"><input type="checkbox" id="ov-toggle" ${overlayOn?"checked":""} onchange="toggleOverlay()"><span class="track"></span><span>Overlay on one chart</span></label>
+      <span class="msg">${selfMode?"Same player — axes match, overlay shows both seasons.":"Both are "+g1+"s — axes match, can share a radar."}</span>`;
+  }else{overlayOn=false;
+    bar.innerHTML=`<label class="toggle disabled"><input type="checkbox" disabled><span class="track"></span><span>Overlay on one chart</span></label>
+      <span class="msg">Different position types (${g1} vs ${g2}) — axes differ, shown separately.</span>`;
+  }
+}
+function toggleOverlay(){overlayOn=document.getElementById("ov-toggle").checked;renderRadars(getAgg(1),getAgg(2));}
+
+function renderCompare(){
+  const s=currentSources();
+  // if both unchecked, treat as both (and message tells them)
+  const d1=getAgg(1),d2=getAgg(2);
+  if(!d1||!d2)return;
+  renderInfoBoard(d1,d2);
+  renderSourceMsg(d1,d2);
+  renderVsBand(d1,d2);
+  renderOverlayBar(d1,d2);
+  renderRadars(d1,d2);
+  renderStatTable(d1,d2);
+  const selfMode=d1.pid===d2.pid,same=META[d1.pid].grp===META[d2.pid].grp;
+  const note=document.getElementById("compare-note");
+  if(selfMode)note.innerHTML=`<b>Reading it:</b> the radar shape is built from <em>raw values on a fixed scale</em>, so a shrinking shape means real decline — not just a weaker field. Hover any point for the raw value and that season's percentile, which can move the other way. The Δ in the table is the raw change.`;
+  else if(same)note.innerHTML=`<b>Reading it:</b> radar shape = raw values on fixed axes; hover for the percentile-vs-peers context. Pick each player's peak season and overlay to settle who was better at their best.`;
+  else note.innerHTML=`<b>Why no overlay:</b> a ${POS_LABEL[META[d1.pid].pos].toLowerCase()} and a ${POS_LABEL[META[d2.pid].pos].toLowerCase()} use different axes, so each keeps its own chart.`;
+}
+
+/* ============ LEADERBOARD ============ */
+const LEAD_DEFAULT=[{key:"ptsSet",label:"Pts/set"},{key:"attEff",label:"Att eff",fmt:"pct"},{key:"kill",label:"Kill%",fmt:"pct"},{key:"blkSet",label:"Blk/set"},{key:"aceSet",label:"Ace/set"},{key:"recPos",label:"Rec+%",fmt:"pct"},{key:"digSet",label:"Dig/set"}];
+const LEAD_LIBERO=[{key:"recPos",label:"Rec+%",fmt:"pct"},{key:"recPerf",label:"Perfect%",fmt:"pct"},{key:"digSet",label:"Dig/set"},{key:"recErrSet",label:"RecErr/set"},{key:"srEff",label:"SR eff",fmt:"pct"}];
+const LEAD_SETTER=[{key:"assSet",label:"Ass/set"},{key:"setEff",label:"Set eff",fmt:"pct"},{key:"blkSet",label:"Blk/set"},{key:"aceSet",label:"Ace/set"},{key:"digSet",label:"Dig/set"}];
+function activeCols(pos){if(pos==="L")return LEAD_LIBERO;if(pos==="S")return LEAD_SETTER;return LEAD_DEFAULT;}
+function renderLeaderboard(){
+  const season=document.getElementById("all-season").value,pos=document.getElementById("all-pos").value,club=document.getElementById("all-club").value;
+  let data=Object.keys(META).map(Number)
+    .filter(pid=>(!pos||META[pid].pos===pos))
+    .map(pid=>{const d=aggregate(pid,season,true,false);return d?Object.assign(d,{_club:rows.find(r=>r.pid===pid&&r.season===season&&r.type==="club")?.club}):null;})
+    .filter(d=>d && (!club||d._club===club));
+  const cols=activeCols(pos);
+  if(!cols.some(c=>c.key===sortField)&&sortField!=="name")sortField=cols[0].key;
+  data.sort((a,b)=>{if(sortField==="name")return sortDir*META[a.pid].name.localeCompare(META[b.pid].name);const av=a[sortField]??-Infinity,bv=b[sortField]??-Infinity;return sortDir*(av-bv);});
+  const arrow=k=>sortField===k?`<span class="arrow">${sortDir<0?"▼":"▲"}</span>`:"";
+  let html=`<thead><tr><th class="lbl" onclick="setSort('name')">Player ${arrow('name')}</th><th class="lbl">Pos</th>`;
+  cols.forEach(c=>html+=`<th onclick="setSort('${c.key}')">${c.label} ${arrow(c.key)}</th>`);
+  html+=`</tr></thead><tbody>`;
+  data.forEach(d=>{const m=META[d.pid];
+    html+=`<tr><td class="lbl"><div class="pname">${m.name}</div><div class="pteam">${CLUB_INFO[d._club]?.full||d._club} · ${m.nat}</div></td><td class="lbl"><span class="pos-tag pos-${m.pos}">${m.pos}</span></td>`;
+    cols.forEach(c=>{const v=d[c.key];html+=`<td>${v==null?'<span style="color:var(--text-faint)">—</span>':fmtVal(v,c.fmt)}</td>`;});
+    html+=`</tr>`;});
+  html+=`</tbody>`;
+  document.getElementById("lead-table").innerHTML=html;
+  document.getElementById("count-pill").textContent=`${data.length} players · ${season}`;
+}
+function setSort(f){if(sortField===f)sortDir*=-1;else{sortField=f;sortDir=f==="name"?1:-1;}renderLeaderboard();}
+
+/* ============ NAV ============ */
+function showPage(w){document.getElementById("page-compare").classList.toggle("hidden",w!=="compare");document.getElementById("page-all").classList.toggle("hidden",w!=="all");document.getElementById("tab-compare").classList.toggle("active",w==="compare");document.getElementById("tab-all").classList.toggle("active",w==="all");if(w==="compare")setTimeout(renderCompare,30);}
+
+/* ============ INIT ============ */
+fillStaticSelects();
+rebuildSelect(1);rebuildSelect(2);
+document.getElementById("sel1").value="1";onPlayerChange(1);document.getElementById("szn1").value="2018/19";
+document.getElementById("sel2").value="1";onPlayerChange(2);document.getElementById("szn2").value="2023/24";
+document.getElementById("all-season").value="2023/24";
+renderCompare();renderLeaderboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── VolleyStat design tokens ─────────────────────────────────────────────────
+   Modelled on the HTML prototype's two :root[data-theme] blocks.
+   Applied to <html data-theme="dark|light"> via ThemeProvider.
+   NOTE: Chart.js cannot read CSS variables — grid/label colours must be
+   passed explicitly (see RadarChart.tsx) and re-passed on theme change.
+─────────────────────────────────────────────────────────────────────────── */
+
+:root[data-theme="dark"] {
+  --bg:          #0e1116;
+  --surface:     #161b22;
+  --surface-2:   #1c232d;
+  --border:      #2a323d;
+  --border-2:    #3a4453;
+  --text:        #e6edf3;
+  --text-dim:    #8b97a7;
+  --text-faint:  #5f6b7a;
+  --grid:        rgba(255,255,255,.08);
+  --p1-soft:     rgba(226,72,63,.18);
+  --p2-soft:     rgba(55,135,221,.18);
+}
+
+:root[data-theme="light"] {
+  --bg:          #f7f8fa;
+  --surface:     #fff;
+  --surface-2:   #f0f2f5;
+  --border:      #e3e6ea;
+  --border-2:    #d2d7de;
+  --text:        #1a1f26;
+  --text-dim:    #5b6573;
+  --text-faint:  #98a1ae;
+  --grid:        rgba(0,0,0,.09);
+  --p1-soft:     rgba(226,72,63,.10);
+  --p2-soft:     rgba(55,135,221,.10);
+}
+
+/* Player / accent colours — theme-independent */
+:root {
+  --p1:     #e2483f;
+  --p2:     #3787dd;
+  --accent: #1d9e75;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+  line-height: 1.5;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ── Scrollbar (dark surfaces) ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+
+/* ── Shadcn theme mapping (minimal; use CSS vars above for our own components) */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-border:     var(--border);
+  --color-ring:       var(--accent);
+}
