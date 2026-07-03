@@ -13,6 +13,7 @@
 import { useEffect, useRef } from 'react'
 import {
   Chart as ChartJS,
+  RadarController,
   RadialLinearScale,
   PointElement,
   LineElement,
@@ -26,7 +27,7 @@ import { RADAR_CONFIGS } from '@/lib/radar-config'
 import { toRadarScore, fmtVal, computePercentile } from '@/lib/stats'
 import type { AggregatedStats, Player, PlayerSeasonStats } from '@/lib/types'
 
-ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip)
+ChartJS.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip)
 
 function themeGridColor(dark: boolean) {
   return dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.09)'
