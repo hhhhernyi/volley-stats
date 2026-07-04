@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "scrape":        "tsx scripts/scrape/run.ts",
+    "scrape:fetch":  "tsx scripts/scrape/run.ts --phase fetch",
+    "scrape:parse":  "tsx scripts/scrape/run.ts --phase parse",
+    "scrape:load":   "tsx scripts/scrape/run.ts --phase load"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -16,6 +20,7 @@
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-query-devtools": "^5.101.2",
     "chart.js": "^4.5.1",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",

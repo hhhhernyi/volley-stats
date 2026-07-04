@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scraper landing layer (raw downloaded HTML + parsed JSON)
+/data/
