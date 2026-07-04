@@ -18,6 +18,8 @@ import {
   LANDING_ROOT, COMPETITION_SLUG,
   teamsListPath, teamRosterPath, playerHtmlPath,
   parsedJsonPath, warningsJsonPath, matchesJsonPath,
+  legavolleyIndexPath, legavolleyTeamStatsPath,
+  LEGAVOLLEY_CLUB_OVERRIDES,
   type SeasonConfig,
 } from './lib/constants.js'
 import { readLanding, readJson, writeJson, fileExists } from './lib/http-client.js'
@@ -25,7 +27,9 @@ import {
   parseTeamsPage, parseRosterPage, parsePlayerPage,
   type ParsedTeam,
 } from './lib/html-parser.js'
-import type { ApiMatch, ParsedPlayerSeason } from './lib/types.js'
+import { parseTeamCodes, parseTeamStatsTable } from './lib/legavolley-parser.js'
+import { normalizeName } from './lib/player-mapper.js'
+import type { ApiMatch, LegaPlayerRow, ParsedPlayerSeason } from './lib/types.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -83,6 +87,236 @@ async function buildMatchSetsMap(season: string): Promise<Map<number, number>> {
 }
 
 // ---------------------------------------------------------------------------
+// legavolley.it overlay — official numbers override volleyballworld's
+// ---------------------------------------------------------------------------
+
+/** Sorted normalized name tokens: "Anzani Simone" and "Simone Anzani" → same key */
+function nameKey(name: string): string {
+  return normalizeName(name).split(' ').sort().join(' ')
+}
+
+/** True if every token of the shorter name appears in the longer one */
+function tokensSubset(a: string, b: string): boolean {
+  const ta = normalizeName(a).split(' ')
+  const tb = normalizeName(b).split(' ')
+  const [small, big] = ta.length <= tb.length ? [ta, tb] : [tb, ta]
+  return small.length > 0 && small.every((t) => big.includes(t))
+}
+
+/** Read all cached legavolley team tables for a season, keyed by team label */
+async function loadLegaTeams(urlSlug: string): Promise<Map<string, LegaPlayerRow[]>> {
+  const byLabel = new Map<string, LegaPlayerRow[]>()
+  const indexPath = legavolleyIndexPath(urlSlug)
+  if (!(await fileExists(indexPath))) return byLabel
+
+  const teams = parseTeamCodes(await readLanding(indexPath))
+  for (const team of teams) {
+    const p = legavolleyTeamStatsPath(urlSlug, team.code)
+    if (!(await fileExists(p))) continue
+    byLabel.set(team.label, parseTeamStatsTable(await readLanding(p)))
+  }
+  return byLabel
+}
+
+/** Resolve a legavolley team label ("Modena") to a scraped vw team name */
+function resolveLegaTeam(label: string, teamNames: string[]): string | null {
+  // Every token of the label appears in the team name, in any order
+  // ("Cisterna Top Volley" → "Top Volley Cisterna")
+  const byTokens = (candidate: string): string | undefined => {
+    const tokens = normalizeName(candidate).split(' ')
+    return teamNames.find((n) => {
+      const nameTokens = normalizeName(n).split(' ')
+      return tokens.every((t) => nameTokens.includes(t))
+    })
+  }
+
+  const direct =
+    teamNames.find((n) => normalizeName(n).includes(normalizeName(label))) ??
+    byTokens(label)
+  if (direct) return direct
+
+  const canonical = LEGAVOLLEY_CLUB_OVERRIDES[label]
+  if (canonical) {
+    const canonNorm = normalizeName(canonical)
+    return teamNames.find(
+      (n) => normalizeName(n).includes(canonNorm) || canonNorm.includes(normalizeName(n)),
+    ) ?? byTokens(canonical) ?? null
+  }
+  return null
+}
+
+/**
+ * A volleyballworld player skipped for having no stats rows — kept around so
+ * a legavolley row (the site records marginal appearances vw misses) can
+ * resurrect them with official numbers plus vw bio/identity.
+ */
+interface BenchCandidate {
+  playerId: number
+  teamVolleyballworldId: number
+  teamName: string
+  info: {
+    name: string
+    position: string | null
+    nationality: string | null
+    height_cm: number | null
+    date_of_birth: string | null
+  }
+}
+
+/**
+ * Overwrite each player's stats with the official legavolley values where
+ * published (sets, points, serve, attack, block, reception). digs/assists
+ * stay from volleyballworld — legavolley doesn't publish them.
+ * rec_positive = reception total − errors − negatives (positive-or-better).
+ */
+async function applyLegavolleyOverlay(
+  urlSlug: string,
+  dbSeason: string,
+  results: ParsedPlayerSeason[],
+  allWarnings: { playerId: number; warnings: string[] }[],
+  bench: BenchCandidate[],
+): Promise<void> {
+  const legaTeams = await loadLegaTeams(urlSlug)
+  if (legaTeams.size === 0) {
+    console.warn('  ⚠ No legavolley data cached — re-run fetch phase; keeping volleyballworld numbers')
+    return
+  }
+
+  // Group legavolley rows by resolved vw team name
+  const teamNames = [...new Set(results.map((r) => r.teamName))]
+  const legaByTeam = new Map<string, LegaPlayerRow[]>()
+  for (const [label, rows] of legaTeams) {
+    const teamName = resolveLegaTeam(label, teamNames)
+    if (!teamName) {
+      console.warn(`  ⚠ legavolley team "${label}" matched no scraped team — rows skipped`)
+      continue
+    }
+    legaByTeam.set(teamName, rows)
+  }
+
+  let matched = 0
+  const usedRows = new Set<LegaPlayerRow>()
+
+  const applyRow = (entry: ParsedPlayerSeason, row: LegaPlayerRow): void => {
+    usedRows.add(row)
+    if (row.sets <= 0) {
+      entry.warnings.push('legavolley row has 0 sets — volleyballworld numbers kept')
+      return
+    }
+    matched++
+    entry.stats.sets_played  = row.sets
+    entry.stats.total_points = row.points
+    entry.stats.aces         = row.aces
+    entry.stats.serve_errors = row.serveErrors
+    entry.stats.atk_attempts = row.atkTotal
+    entry.stats.atk_errors   = row.atkErrors
+    entry.stats.atk_kills    = row.atkKills
+    entry.stats.blocks       = row.blocks
+    entry.stats.rec_attempts = row.recTotal
+    entry.stats.rec_errors   = row.recErrors
+    entry.stats.rec_perfect  = row.recPerfect
+    entry.stats.rec_positive = Math.max(0, row.recTotal - row.recErrors - row.recNegative)
+  }
+
+  // Match team by team, in three passes of decreasing strictness
+  for (const teamName of teamNames) {
+    const entries = results.filter((r) => r.teamName === teamName)
+    const rows = legaByTeam.get(teamName)
+    if (!rows) {
+      for (const entry of entries) {
+        entry.warnings.push('no legavolley data for team — volleyballworld numbers kept')
+      }
+      continue
+    }
+
+    const unmatchedEntries = new Set(entries)
+    const unusedRows = new Set(rows)
+
+    const pair = (entry: ParsedPlayerSeason, row: LegaPlayerRow) => {
+      unmatchedEntries.delete(entry)
+      unusedRows.delete(row)
+      applyRow(entry, row)
+    }
+
+    // Pass 1: identical sorted-token names ("Anzani Simone" = "Simone Anzani")
+    for (const entry of [...unmatchedEntries]) {
+      const key = nameKey(entry.player.name)
+      const row = [...unusedRows].find((r) => nameKey(r.name) === key)
+      if (row) pair(entry, row)
+    }
+
+    // Pass 2: one name's tokens are a subset of the other's (extra middle names)
+    for (const entry of [...unmatchedEntries]) {
+      const row = [...unusedRows].find((r) => tokensSubset(r.name, entry.player.name))
+      if (row) pair(entry, row)
+    }
+
+    // Pass 3: unique shared long token — handles nicknames and joined names
+    // ("Davyskiba Vlad" ↔ "Uladzislau Davyskiba", "Lee Woo-Jin" ↔ "Woojin Lee").
+    // Only pair when the shared-token relation is unique in BOTH directions.
+    for (const entry of [...unmatchedEntries]) {
+      const entryTokens = normalizeName(entry.player.name).split(' ').filter((t) => t.length >= 3)
+      const shares = (row: LegaPlayerRow) => {
+        const rowTokens = normalizeName(row.name).split(' ')
+        return entryTokens.some((t) => rowTokens.includes(t))
+      }
+      const candidates = [...unusedRows].filter(shares)
+      if (candidates.length !== 1) continue
+      const row = candidates[0]
+      const rowTokens = normalizeName(row.name).split(' ').filter((t) => t.length >= 3)
+      const reverse = [...unmatchedEntries].filter((e) => {
+        const eTokens = normalizeName(e.player.name).split(' ')
+        return rowTokens.some((t) => eTokens.includes(t))
+      })
+      if (reverse.length === 1 && reverse[0] === entry) pair(entry, row)
+    }
+
+    for (const entry of unmatchedEntries) {
+      entry.warnings.push('no legavolley match — volleyballworld numbers kept')
+      allWarnings.push({
+        playerId: entry.player.volleyballworld_id,
+        warnings: [`"${entry.player.name}" has no legavolley match — volleyballworld numbers kept`],
+      })
+    }
+
+    // Pass 4: resurrect vw-roster players who have official stats but no
+    // vw stat rows (marginal appearances vw doesn't record)
+    const teamBench = bench.filter((b) => b.teamName === teamName)
+    for (const row of [...unusedRows]) {
+      if (row.sets <= 0) continue
+      const key = nameKey(row.name)
+      const cand =
+        teamBench.find((b) => nameKey(b.info.name) === key) ??
+        teamBench.find((b) => tokensSubset(row.name, b.info.name))
+      if (!cand || results.some((r) => r.player.volleyballworld_id === cand.playerId)) {
+        console.warn(`  ⚠ legavolley player "${row.name}" (${teamName}) has no volleyballworld counterpart — skipped`)
+        continue
+      }
+      unusedRows.delete(row)
+      const entry: ParsedPlayerSeason = {
+        season: dbSeason,
+        teamVolleyballworldId: cand.teamVolleyballworldId,
+        teamName,
+        player: { volleyballworld_id: cand.playerId, ...cand.info },
+        stats: {
+          sets_played: 0, atk_attempts: 0, atk_kills: 0, atk_errors: 0,
+          total_points: 0, aces: 0, serve_errors: 0, blocks: 0,
+          digs: 0, // not published by legavolley; vw had nothing
+          rec_attempts: 0, rec_positive: 0, rec_perfect: 0, rec_errors: 0,
+          assists: null,
+        },
+        warnings: ['recovered from legavolley — volleyballworld had no stats rows (digs unknown)'],
+      }
+      applyRow(entry, row)
+      results.push(entry)
+      allWarnings.push({ playerId: cand.playerId, warnings: entry.warnings })
+    }
+  }
+
+  console.log(`  legavolley matched ${matched}/${results.length} players`)
+}
+
+// ---------------------------------------------------------------------------
 // Parse one season
 // ---------------------------------------------------------------------------
 
@@ -114,6 +348,7 @@ export async function parseSeason(
 
   const results: ParsedPlayerSeason[] = []
   const allWarnings: { playerId: number; warnings: string[] }[] = []
+  const bench: BenchCandidate[] = []
 
   for (const playerId of playerIds) {
     const filePath = playerHtmlPath(urlSlug, playerId)
@@ -140,6 +375,12 @@ export async function parseSeason(
     if (matchRows.length === 0) {
       warnings.push('No match stats on page — skipped (player likely never appeared)')
       allWarnings.push({ playerId, warnings })
+      bench.push({
+        playerId,
+        teamVolleyballworldId: teamId,
+        teamName: teamById.get(teamId)?.name ?? `team-${teamId}`,
+        info,
+      })
       continue
     }
 
@@ -168,6 +409,12 @@ export async function parseSeason(
     if (sets_played === 0) {
       warnings.push('sets_played=0 (no matches with any recorded stat) — skipped')
       allWarnings.push({ playerId, warnings })
+      bench.push({
+        playerId,
+        teamVolleyballworldId: teamId,
+        teamName: teamById.get(teamId)?.name ?? `team-${teamId}`,
+        info,
+      })
       continue
     }
 
@@ -216,6 +463,9 @@ export async function parseSeason(
       allWarnings.push({ playerId, warnings })
     }
   }
+
+  // Overlay official legavolley.it numbers (authoritative where published)
+  await applyLegavolleyOverlay(urlSlug, dbSeason, results, allWarnings, bench)
 
   // Write outputs
   await writeJson(parsedJsonPath(urlSlug), results)

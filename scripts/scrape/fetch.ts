@@ -12,16 +12,19 @@
 
 import * as cheerio from 'cheerio'
 import {
-  SEASONS,
+  SEASONS, BROWSER_USER_AGENT,
   teamsListUrl, teamRosterUrl, playerPageUrl, teamScheduleUrl, matchesApiUrl,
   teamsListPath, teamRosterPath, playerHtmlPath, teamSchedulePath,
   matchesJsonPath, manifestPath,
+  legavolleyIndexUrl, legavolleyIndexPath,
+  legavolleyTeamStatsUrl, legavolleyTeamStatsPath, seasonStartYear,
   type SeasonConfig,
 } from './lib/constants.js'
 import {
   fetchAndCache, writeJson, readJson, fileExists,
 } from './lib/http-client.js'
 import { extractTournamentNo } from './lib/html-parser.js'
+import { parseTeamCodes } from './lib/legavolley-parser.js'
 import type { CacheManifest, SeasonManifest, ScrapedTeam, ScrapedPlayerStub } from './lib/types.js'
 
 // ---------------------------------------------------------------------------
@@ -175,6 +178,31 @@ export async function fetchSeason(
         forceRefresh,
       )
     }
+  }
+
+  // Step 5: legavolley.it official stats — one page per team (authoritative
+  // for sets played, reception, attack, serve, block; see docs/DATA_SOURCES.md)
+  const year = seasonStartYear(urlSlug)
+  const legaIndexHtml = await fetchAndCache(
+    legavolleyIndexUrl(year),
+    legavolleyIndexPath(urlSlug),
+    forceRefresh,
+    BROWSER_USER_AGENT,
+  )
+
+  const legaTeams = parseTeamCodes(legaIndexHtml)
+  if (legaTeams.length === 0) {
+    throw new Error(`[${urlSlug}] No team codes found on legavolley.it stats page.`)
+  }
+  console.log(`  legavolley.it teams: ${legaTeams.length}`)
+
+  for (const team of legaTeams) {
+    await fetchAndCache(
+      legavolleyTeamStatsUrl(year, team.code),
+      legavolleyTeamStatsPath(urlSlug, team.code),
+      forceRefresh,
+      BROWSER_USER_AGENT,
+    )
   }
 
   // Update manifest

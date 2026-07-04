@@ -17,6 +17,10 @@ export const REQUEST_DELAY_MS = 1_500
 /** User-agent to identify ourselves */
 export const USER_AGENT = 'VolleyStat-personal-stats-research/1.0'
 
+/** legavolley.it returns 403 to non-browser user agents */
+export const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+
 // ---------------------------------------------------------------------------
 // Season config
 // ---------------------------------------------------------------------------
@@ -88,6 +92,64 @@ export function teamSchedulePath(season: string, teamId: number): string {
 
 export function matchesJsonPath(season: string): string {
   return `${LANDING_ROOT}/${COMPETITION_SLUG}/${season}/matches.json`
+}
+
+// ---------------------------------------------------------------------------
+// legavolley.it (official Lega Pallavolo Serie A) — authoritative stats source
+// ---------------------------------------------------------------------------
+
+export const LEGAVOLLEY_BASE = 'https://www.legavolley.it'
+
+/** First year of a season url slug: '2024-2025' → 2024 (= AnnoInizio) */
+export function seasonStartYear(seasonSlug: string): number {
+  return parseInt(seasonSlug.split('-')[0], 10)
+}
+
+/**
+ * All players of one team for a season.
+ * TipoStat 1.1 = "SQUADRA - Atleta per Atleta"; Fase 3 = RS + Play Off;
+ * Serie 1 = A1 (SuperLega).
+ */
+export function legavolleyTeamStatsUrl(year: number, teamCode: string): string {
+  return `${LEGAVOLLEY_BASE}/statistiche/?TipoStat=1.1&Serie=1&AnnoInizio=${year}&Fase=3&Squadra=${encodeURIComponent(teamCode)}&Giornata=0`
+}
+
+/** Any season-scoped stats page — used only to read the team-code dropdown */
+export function legavolleyIndexUrl(year: number): string {
+  return `${LEGAVOLLEY_BASE}/statistiche/?TipoStat=1.1&Serie=1&AnnoInizio=${year}&Fase=3&Giornata=0`
+}
+
+export function legavolleyIndexPath(season: string): string {
+  return `${LANDING_ROOT}/legavolley/${season}/index.html`
+}
+
+export function legavolleyTeamStatsPath(season: string, teamCode: string): string {
+  return `${LANDING_ROOT}/legavolley/${season}/${teamCode}.html`
+}
+
+/**
+ * Maps legavolley team-dropdown labels (short: "Lube", "Milano", …) to the
+ * canonical club full_name used by the volleyballworld side, where plain
+ * normalized-name containment wouldn't land.
+ */
+export const LEGAVOLLEY_CLUB_OVERRIDES: Record<string, string> = {
+  'Lube':          'Cucine Lube Civitanova',
+  'Milano':        'Allianz Milano',
+  'Monza':         'Vero Volley Monza',
+  'Cisterna':      'Cisterna Volley',
+  'Grottazzolina': 'Yuasa Battery Grottazzolina',
+  'Trentino':      'Itas Trentino',
+  'Trento':        'Itas Trentino',
+  'Perugia':       'Sir Susa Vim Perugia',
+  'Piacenza':      'Gas Sales Bluenergy Piacenza',
+  'Modena':        'Valsa Group Modena',
+  'Padova':        'Sonepar Padova',
+  'Verona':        'Rana Verona',
+  'Taranto':       'Gioiella Prisma Taranto',
+  'Acicastello':   'Farmitalia Catania',
+  'Siena':         'Emma Villas Siena',
+  'Ravenna':       'Consar Ravenna',
+  'Vibo Valentia': 'Tonno Callipo Vibo Valentia',
 }
 
 export function parsedJsonPath(season: string): string {

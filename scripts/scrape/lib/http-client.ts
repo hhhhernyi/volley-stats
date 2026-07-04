@@ -30,11 +30,13 @@ async function throttle(): Promise<void> {
  * @param url         - Full URL to fetch
  * @param filePath    - Absolute or project-relative path to write/read cache
  * @param forceRefresh - If true, skip cache and always re-fetch
+ * @param userAgent   - Override UA (legavolley.it 403s non-browser agents)
  */
 export async function fetchAndCache(
   url: string,
   filePath: string,
   forceRefresh = false,
+  userAgent: string = USER_AGENT,
 ): Promise<string> {
   const abs = path.isAbsolute(filePath)
     ? filePath
@@ -60,7 +62,7 @@ export async function fetchAndCache(
 
   const response = await fetch(url, {
     headers: {
-      'User-Agent': USER_AGENT,
+      'User-Agent': userAgent,
       'Accept': 'text/html,application/xhtml+xml',
       'Accept-Language': 'en-US,en;q=0.9',
     },

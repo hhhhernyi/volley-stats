@@ -41,6 +41,30 @@ export interface ApiMatch {
   statusLabel: string
 }
 
+/**
+ * One player row from a legavolley.it team stats table (TipoStat=1.1).
+ * Name is "Cognome Nome" (surname first). All values are raw counts except
+ * where noted; the site is authoritative for these fields.
+ */
+export interface LegaPlayerRow {
+  name: string
+  matches: number
+  sets: number
+  points: number
+  serveTotal: number
+  aces: number
+  serveErrors: number
+  recTotal: number
+  recErrors: number
+  recNegative: number
+  recPerfect: number
+  atkTotal: number
+  atkErrors: number
+  atkBlocked: number
+  atkKills: number
+  blocks: number
+}
+
 // ---------------------------------------------------------------------------
 // Parse phase inputs/outputs
 // ---------------------------------------------------------------------------
