@@ -49,7 +49,8 @@ interface Props {
   positionGroup: string
   allStats: PlayerSeasonStats[]
   allPlayers: Player[]
-  competitionTypes: Map<number, string>
+  /** Domestic-league competition ids — percentile cohort */
+  leagueCompIds: ReadonlySet<number>
   height?: number
 }
 
@@ -58,7 +59,7 @@ export function RadarChart({
   positionGroup,
   allStats,
   allPlayers,
-  competitionTypes,
+  leagueCompIds,
   height = 310,
 }: Props) {
   const { theme } = useTheme()
@@ -117,7 +118,7 @@ export function RadarChart({
               const raw   = ds.d[axis.key] as number | null
               const pct   = computePercentile(
                 raw, axis.key, ds.player.position_group, ds.d.season,
-                allStats, allPlayers, competitionTypes, axis.invert,
+                allStats, allPlayers, leagueCompIds, axis.invert,
               )
               const rawStr = fmtVal(raw, axis.fmt)
               return pct != null
@@ -153,7 +154,7 @@ export function RadarChart({
       chartRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, positionGroup, JSON.stringify(datasets.map((d) => ({ id: d.d.player_id, season: d.d.season, sources: d.d.sources })))])
+  }, [theme, positionGroup, JSON.stringify(datasets.map((d) => ({ id: d.d.player_id, season: d.d.season, comps: d.d.competition_ids })))])
 
   return (
     <div style={{ position: 'relative', width: '100%', height }}>

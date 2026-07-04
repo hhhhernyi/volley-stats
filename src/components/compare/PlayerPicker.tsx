@@ -1,7 +1,8 @@
 'use client'
 
+import React from 'react'
 import type { Player, Club, PlayerSeasonStats } from '@/lib/types'
-import { POS_LABEL, SEASONS, seasonsForPlayer } from '@/lib/seed-data'
+import { POS_LABEL, seasonsForPlayer } from '@/lib/helpers'
 
 interface Props {
   slot: 1 | 2
@@ -130,6 +131,3 @@ export function PlayerPicker({
     </div>
   )
 }
-
-// Need React for local state — import at top
-import React from 'react'

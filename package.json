@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx scripts/seed.ts",
     "scrape":        "tsx scripts/scrape/run.ts",
     "scrape:fetch":  "tsx scripts/scrape/run.ts --phase fetch",
     "scrape:parse":  "tsx scripts/scrape/run.ts --phase parse",

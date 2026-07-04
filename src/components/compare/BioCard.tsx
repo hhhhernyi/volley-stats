@@ -1,17 +1,6 @@
 import type { Player, Club, AggregatedStats } from '@/lib/types'
 import { initials, fmtDob, computeAge } from '@/lib/stats'
-import { POS_LABEL } from '@/lib/seed-data'
-
-const NAT_INFO: Record<string, { full: string; flag: string }> = {
-  JPN: { full: 'Japan',     flag: '🇯🇵' },
-  ITA: { full: 'Italy',     flag: '🇮🇹' },
-  BRA: { full: 'Brazil',    flag: '🇧🇷' },
-  POL: { full: 'Poland',    flag: '🇵🇱' },
-  TUN: { full: 'Tunisia',   flag: '🇹🇳' },
-  FRA: { full: 'France',    flag: '🇫🇷' },
-  SRB: { full: 'Serbia',    flag: '🇷🇸' },
-  ARG: { full: 'Argentina', flag: '🇦🇷' },
-}
+import { POS_LABEL, natInfo } from '@/lib/helpers'
 
 interface Props {
   player: Player
@@ -25,7 +14,7 @@ interface Props {
 export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props) {
   const accent = slot === 1 ? 'var(--p1)' : 'var(--p2)'
   const softBg = slot === 1 ? 'var(--p1-soft)' : 'var(--p2-soft)'
-  const nat = NAT_INFO[player.nationality] ?? { full: player.nationality, flag: '🌐' }
+  const nat = natInfo(player.nationality)
 
   return (
     <div

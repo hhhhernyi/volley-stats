@@ -6,7 +6,6 @@ export type Position = 'OH' | 'OPP' | 'MB' | 'S' | 'L'
 export type PositionGroup = 'attacker' | 'setter' | 'libero'
 export type CompetitionType = 'domestic_league' | 'national_team' | 'continental_club'
 export type StatSystem = 'fivb' | 'superlega' | 'plusliga' | 'ncaa'
-export type SourceType = 'club' | 'nt'
 
 export interface Player {
   id: number
@@ -110,8 +109,8 @@ export interface AggregatedStats {
   // Libero
   involvement: number | null
   sr_efficiency: number | null
-  // Meta
-  sources: SourceType[]
+  // Meta: competitions whose rows fed this aggregate
+  competition_ids: number[]
 }
 
 // ============================================================
@@ -148,15 +147,6 @@ export interface RadarAxis {
 export interface RadarConfig {
   label: string
   axes: RadarAxis[]
-}
-
-// ============================================================
-// Source selection
-// ============================================================
-
-export interface SourceSelection {
-  club: boolean
-  nt: boolean
 }
 
 // ============================================================

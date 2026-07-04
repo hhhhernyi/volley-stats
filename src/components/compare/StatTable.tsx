@@ -2,7 +2,6 @@ import React from 'react'
 import type { AggregatedStats, Player, PlayerSeasonStats } from '@/lib/types'
 import { STAT_GROUPS } from '@/lib/radar-config'
 import { fmtVal, pctBg, pctText, computePercentile, lastName } from '@/lib/stats'
-import { SEASONS } from '@/lib/seed-data'
 
 interface Props {
   d1: AggregatedStats
@@ -11,12 +10,13 @@ interface Props {
   p2: Player
   allStats: PlayerSeasonStats[]
   allPlayers: Player[]
-  competitionTypes: Map<number, string>
+  leagueCompIds: ReadonlySet<number>
 }
 
-export function StatTable({ d1, d2, p1, p2, allStats, allPlayers, competitionTypes }: Props) {
+export function StatTable({ d1, d2, p1, p2, allStats, allPlayers, leagueCompIds }: Props) {
   const selfMode = d1.player_id === d2.player_id
-  const laterIs2 = SEASONS.indexOf(d2.season) >= SEASONS.indexOf(d1.season)
+  // Season strings ('2021/22') order correctly as plain string comparison
+  const laterIs2 = d2.season >= d1.season
 
   /** Render one stat cell for a given player-season aggregate */
   function StatCell({
@@ -142,11 +142,11 @@ export function StatTable({ d1, d2, p1, p2, allStats, allPlayers, competitionTyp
 
                   const pct1 = computePercentile(
                     v1, row.key, p1.position_group, d1.season,
-                    allStats, allPlayers, competitionTypes, row.lowGood,
+                    allStats, allPlayers, leagueCompIds, row.lowGood,
                   )
                   const pct2 = computePercentile(
                     v2, row.key, p2.position_group, d2.season,
-                    allStats, allPlayers, competitionTypes, row.lowGood,
+                    allStats, allPlayers, leagueCompIds, row.lowGood,
                   )
 
                   return (

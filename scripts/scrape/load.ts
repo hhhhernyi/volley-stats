@@ -9,7 +9,7 @@
 import { config as dotenvConfig } from 'dotenv'
 dotenvConfig({ path: ['.env.local', '.env'] })
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
   SEASONS, COMPETITION_ID,
   parsedJsonPath,
@@ -22,7 +22,7 @@ import type { ParsedPlayerSeason } from './lib/types.js'
 // Supabase admin client
 // ---------------------------------------------------------------------------
 
-function getSupabaseAdmin() {
+function getSupabaseAdmin(): SupabaseClient {
   const url = process.env['NEXT_PUBLIC_SUPABASE_URL']
   const key = process.env['SUPABASE_SERVICE_ROLE_KEY']
 
@@ -42,8 +42,7 @@ function getSupabaseAdmin() {
 // Competition row (FK target) — must exist before stats upsert
 // ---------------------------------------------------------------------------
 
-/** Matches src/lib/seed-data.ts COMPETITIONS id 1 */
-async function ensureCompetition(supabase: ReturnType<typeof createClient>): Promise<void> {
+async function ensureCompetition(supabase: SupabaseClient): Promise<void> {
   const { error } = await supabase
     .from('competitions')
     .upsert(
@@ -62,7 +61,7 @@ async function ensureCompetition(supabase: ReturnType<typeof createClient>): Pro
 const BATCH_SIZE = 100
 
 async function upsertBatch(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   rows: Record<string, unknown>[],
 ): Promise<void> {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
@@ -82,7 +81,7 @@ async function upsertBatch(
 // ---------------------------------------------------------------------------
 
 export async function loadSeason(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   urlSlug: string,
   dbSeason: string,
   dryRun: boolean,

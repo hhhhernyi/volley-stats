@@ -1,13 +1,14 @@
 import { AllStatsView } from '@/components/all-stats/AllStatsView'
-import { PLAYERS, CLUBS, getAllSeasonStats } from '@/lib/seed-data'
+import { getAppData } from '@/lib/data'
 
-export default function AllStatsPage() {
-  const allStats = getAllSeasonStats()
+export default async function AllStatsPage() {
+  const { players, clubs, competitions, allStats } = await getAppData()
 
   return (
     <AllStatsView
-      players={PLAYERS}
-      clubs={CLUBS}
+      players={players}
+      clubs={clubs}
+      competitions={competitions}
       allStats={allStats}
     />
   )

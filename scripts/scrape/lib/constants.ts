@@ -104,9 +104,9 @@ export function manifestPath(): string {
 
 // ---------------------------------------------------------------------------
 // Club name overrides
-// Maps site name → canonical DB full_name (must match seed-data.ts CLUBS
-// full_name values where the club is already seeded; resolveClub falls back
-// to the site name for clubs not in the seed).
+// Maps site name → canonical DB full_name so the same club resolves to one
+// clubs row across seasons despite sponsor-driven renames; resolveClub falls
+// back to the site name for clubs without an override.
 // ---------------------------------------------------------------------------
 
 export const CLUB_NAME_OVERRIDES: Record<string, string> = {

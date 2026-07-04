@@ -1,18 +1,19 @@
 import { CompareView } from '@/components/compare/CompareView'
-import { PLAYERS, CLUBS, getAllSeasonStats } from '@/lib/seed-data'
+import { getAppData } from '@/lib/data'
 
 /**
- * Compare page — server component that supplies initial data.
+ * Compare page — server component that supplies data from Supabase.
  * All interactivity (player selection, source checkboxes, radars) runs
  * inside the CompareView client component.
  */
-export default function ComparePage() {
-  const allStats = getAllSeasonStats()
+export default async function ComparePage() {
+  const { players, clubs, competitions, allStats } = await getAppData()
 
   return (
     <CompareView
-      players={PLAYERS}
-      clubs={CLUBS}
+      players={players}
+      clubs={clubs}
+      competitions={competitions}
       allStats={allStats}
     />
   )

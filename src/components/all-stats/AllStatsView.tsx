@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import type { Player, Club, PlayerSeasonStats } from '@/lib/types'
-import {
-  SEASONS, CLUBS, getCompetitionTypeMap, getClubMap,
-} from '@/lib/seed-data'
+import type { Player, Club, Competition, PlayerSeasonStats } from '@/lib/types'
+import { distinctSeasons, getClubMap, leagueCompetitionIds } from '@/lib/helpers'
 import { aggregateStats, fmtVal } from '@/lib/stats'
 import {
   LEAD_COLS_DEFAULT,
@@ -33,20 +31,23 @@ const selectStyle: React.CSSProperties = {
 }
 
 interface Props {
-  players:  Player[]
-  clubs:    Club[]
-  allStats: PlayerSeasonStats[]
+  players:      Player[]
+  clubs:        Club[]
+  competitions: Competition[]
+  allStats:     PlayerSeasonStats[]
 }
 
-export function AllStatsView({ players, clubs, allStats }: Props) {
-  const [season,   setSeason]   = useState(SEASONS[SEASONS.length - 1])
+export function AllStatsView({ players, clubs, competitions, allStats }: Props) {
+  const seasons = useMemo(() => distinctSeasons(allStats), [allStats])
+
+  const [season,   setSeason]   = useState(() => seasons[seasons.length - 1] ?? '')
   const [posFilter, setPosFilter] = useState('')
   const [clubFilter, setClubFilter] = useState('')
   const [sortField, setSortField] = useState<string>('points_per_set')
   const [sortDir,  setSortDir]  = useState<-1 | 1>(-1)
 
-  const compTypeMap = useMemo(() => getCompetitionTypeMap(), [])
-  const clubMap     = useMemo(() => getClubMap(), [])
+  const leagueIds = useMemo(() => leagueCompetitionIds(competitions), [competitions])
+  const clubMap   = useMemo(() => getClubMap(clubs), [clubs])
 
   // Pick columns based on position filter
   const cols = posFilter === 'L' ? LEAD_COLS_LIBERO
@@ -58,11 +59,11 @@ export function AllStatsView({ players, clubs, allStats }: Props) {
     const data = players
       .filter((p) => !posFilter || p.primary_position === posFilter)
       .map((p) => {
-        const d = aggregateStats(allStats, p.id, season, true, false, compTypeMap)
+        const d = aggregateStats(allStats, p.id, season, leagueIds, false)
         if (!d) return null
         // Find club for this player/season
         const statsRow = allStats.find(
-          (r) => r.player_id === p.id && r.season === season && r.competition_id === 1,
+          (r) => r.player_id === p.id && r.season === season && r.club_id != null,
         )
         const club = statsRow?.club_id ? clubMap.get(statsRow.club_id) : undefined
         return { d, player: p, club }
@@ -85,7 +86,7 @@ export function AllStatsView({ players, clubs, allStats }: Props) {
       const bv = (b.d[sortField as keyof typeof b.d] as number | null) ?? -Infinity
       return sortDir * (av - bv)
     })
-  }, [players, allStats, season, posFilter, clubFilter, sortField, sortDir, compTypeMap, clubMap, cols])
+  }, [players, allStats, season, posFilter, clubFilter, sortField, sortDir, leagueIds, clubMap, cols])
 
   function handleSortClick(field: string) {
     if (sortField === field) {
@@ -117,7 +118,7 @@ export function AllStatsView({ players, clubs, allStats }: Props) {
             label: 'Season',
             node: (
               <select style={selectStyle} value={season} onChange={(e) => setSeason(e.target.value)}>
-                {[...SEASONS].reverse().map((s) => (
+                {[...seasons].reverse().map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>

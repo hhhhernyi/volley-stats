@@ -2,19 +2,22 @@
 
 import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { Player, Club, PlayerSeasonStats, AggregatedStats, SourceSelection } from '@/lib/types'
+import type { Player, Club, Competition, PlayerSeasonStats } from '@/lib/types'
 import {
-  SEASONS,
-  seasonsForPlayer,
+  COMP_TYPE_LABEL,
+  competitionsInData,
+  distinctSeasons,
   getClubForSeason,
-  getNtEventForSeason,
-  getCompetitionTypeMap,
   getClubMap,
-} from '@/lib/seed-data'
+  getNtEventForSeason,
+  leagueCompetitionIds,
+  seasonsForPlayer,
+} from '@/lib/helpers'
 import { aggregateStats, lastName } from '@/lib/stats'
 import { PlayerPicker }  from './PlayerPicker'
 import { BioCard }       from './BioCard'
 import { StatTable }     from './StatTable'
+import { RADAR_CONFIGS } from '@/lib/radar-config'
 
 // Radar chart uses canvas — SSR must be disabled
 const RadarChart = dynamic(
@@ -23,68 +26,103 @@ const RadarChart = dynamic(
 )
 
 interface Props {
-  players:  Player[]
-  clubs:    Club[]
-  allStats: PlayerSeasonStats[]
+  players:      Player[]
+  clubs:        Club[]
+  competitions: Competition[]
+  allStats:     PlayerSeasonStats[]
 }
 
-// Default to Ishikawa (id=1) earliest vs latest — a meaningful self-comparison
-const DEFAULT_P1_ID     = 1
-const DEFAULT_P1_SEASON = '2018/19'
-const DEFAULT_P2_ID     = 1
-const DEFAULT_P2_SEASON = '2023/24'
+/** Top scorers of the latest season — a meaningful default comparison */
+function defaultSelection(allStats: PlayerSeasonStats[], seasons: string[]) {
+  const latest = seasons[seasons.length - 1]
+  const pointsByPlayer = new Map<number, number>()
+  for (const r of allStats) {
+    if (r.season !== latest) continue
+    pointsByPlayer.set(r.player_id, (pointsByPlayer.get(r.player_id) ?? 0) + r.total_points)
+  }
+  const ranked = [...pointsByPlayer.entries()].sort((a, b) => b[1] - a[1])
+  return {
+    p1Id: ranked[0]?.[0] ?? 0,
+    p2Id: ranked[1]?.[0] ?? ranked[0]?.[0] ?? 0,
+    season: latest ?? '',
+  }
+}
 
-export function CompareView({ players, clubs, allStats }: Props) {
-  const [p1Id,     setP1Id]     = useState(DEFAULT_P1_ID)
-  const [p1Season, setP1Season] = useState(DEFAULT_P1_SEASON)
-  const [p2Id,     setP2Id]     = useState(DEFAULT_P2_ID)
-  const [p2Season, setP2Season] = useState(DEFAULT_P2_SEASON)
-  const [sources,  setSources]  = useState<SourceSelection>({ club: true, nt: true })
+export function CompareView({ players, clubs, competitions, allStats }: Props) {
+  const seasons     = useMemo(() => distinctSeasons(allStats), [allStats])
+  const activeComps = useMemo(() => competitionsInData(competitions, allStats), [competitions, allStats])
+  const leagueIds   = useMemo(() => leagueCompetitionIds(competitions), [competitions])
+  const clubMap     = useMemo(() => getClubMap(clubs), [clubs])
+
+  const [defaults] = useState(() => defaultSelection(allStats, seasons))
+  const [p1Id,     setP1Id]     = useState(defaults.p1Id)
+  const [p1Season, setP1Season] = useState(defaults.season)
+  const [p2Id,     setP2Id]     = useState(defaults.p2Id)
+  const [p2Season, setP2Season] = useState(defaults.season)
   const [overlay,  setOverlay]  = useState(false)
 
-  const compTypeMap = useMemo(() => getCompetitionTypeMap(), [])
-  const clubMap     = useMemo(() => getClubMap(), [])
+  // Source selection: one checkbox per competition present in the data
+  const [selectedComps, setSelectedComps] = useState<Set<number>>(
+    () => new Set(competitionsInData(competitions, allStats).map((c) => c.id)),
+  )
+
+  function toggleComp(id: number, checked: boolean) {
+    setSelectedComps((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
 
   // Aggregate stats for each slot
   const d1 = useMemo(
-    () => aggregateStats(allStats, p1Id, p1Season, sources.club, sources.nt, compTypeMap),
-    [allStats, p1Id, p1Season, sources, compTypeMap],
+    () => aggregateStats(allStats, p1Id, p1Season, selectedComps),
+    [allStats, p1Id, p1Season, selectedComps],
   )
   const d2 = useMemo(
-    () => aggregateStats(allStats, p2Id, p2Season, sources.club, sources.nt, compTypeMap),
-    [allStats, p2Id, p2Season, sources, compTypeMap],
+    () => aggregateStats(allStats, p2Id, p2Season, selectedComps),
+    [allStats, p2Id, p2Season, selectedComps],
   )
 
-  const p1 = players.find((p) => p.id === p1Id)!
-  const p2 = players.find((p) => p.id === p2Id)!
-
-  const club1 = getClubForSeason(p1Id, p1Season, allStats, clubMap)
-  const club2 = getClubForSeason(p2Id, p2Season, allStats, clubMap)
-  const nt1   = getNtEventForSeason(p1Id, p1Season, allStats)
-  const nt2   = getNtEventForSeason(p2Id, p2Season, allStats)
-
-  const selfMode  = p1Id === p2Id
-  const sameGroup = p1.position_group === p2.position_group
+  const p1 = players.find((p) => p.id === p1Id)
+  const p2 = players.find((p) => p.id === p2Id)
 
   // When player changes, pick their latest available season
   function handleP1Change(id: number) {
     setP1Id(id)
-    const seasons = seasonsForPlayer(id, allStats)
-    setP1Season(seasons[seasons.length - 1] ?? SEASONS[SEASONS.length - 1])
+    const avail = seasonsForPlayer(id, allStats)
+    setP1Season(avail[avail.length - 1] ?? seasons[seasons.length - 1])
     setOverlay(false)
   }
   function handleP2Change(id: number) {
     setP2Id(id)
-    const seasons = seasonsForPlayer(id, allStats)
-    setP2Season(seasons[seasons.length - 1] ?? SEASONS[SEASONS.length - 1])
+    const avail = seasonsForPlayer(id, allStats)
+    setP2Season(avail[avail.length - 1] ?? seasons[seasons.length - 1])
     setOverlay(false)
   }
 
-  if (!d1 || !d2) return null
+  if (players.length === 0 || allStats.length === 0) {
+    return (
+      <p className="text-sm mt-10" style={{ color: 'var(--text-dim)' }}>
+        No stats in the database yet — run the scraper (<code>npm run scrape</code>) first.
+      </p>
+    )
+  }
+  if (!p1 || !p2 || !d1 || !d2) return null
+
+  const club1 = getClubForSeason(p1Id, p1Season, allStats, clubMap)
+  const club2 = getClubForSeason(p2Id, p2Season, allStats, clubMap)
+  const nt1   = getNtEventForSeason(p1Id, p1Season, allStats, competitions)
+  const nt2   = getNtEventForSeason(p2Id, p2Season, allStats, competitions)
+
+  const selfMode  = p1Id === p2Id
+  const sameGroup = p1.position_group === p2.position_group
 
   const sourcesLabel =
-    sources.club && sources.nt ? 'club + country (weighted)' :
-    sources.club ? 'club only' : 'country only'
+    selectedComps.size === activeComps.length
+      ? activeComps.length > 1 ? 'all competitions (weighted)' : activeComps[0]?.name ?? ''
+      : activeComps.filter((c) => selectedComps.has(c.id)).map((c) => c.name).join(' + ')
 
   return (
     <div>
@@ -95,8 +133,8 @@ export function CompareView({ players, clubs, allStats }: Props) {
         Compare players
       </h1>
       <p className="text-sm mb-6" style={{ color: 'var(--text-dim)' }}>
-        Pick two players and a season for each. Tick club and/or country to choose which
-        competitions feed the numbers. Combined uses a volume-weighted average, never a naive mean.
+        Pick two players and a season for each. Tick competitions to choose which ones
+        feed the numbers. Combined uses a volume-weighted average, never a naive mean.
       </p>
 
       {/* ── Pickers ────────────────────────────────────────────────────────── */}
@@ -119,7 +157,7 @@ export function CompareView({ players, clubs, allStats }: Props) {
         <BioCard player={p2} aggregated={d2} club={club2} ntEvent={nt2} slot={2} />
       </div>
 
-      {/* ── Source checkboxes ──────────────────────────────────────────────── */}
+      {/* ── Source checkboxes (one per competition in the data) ───────────── */}
       <div
         className="flex items-center gap-4 mb-5 rounded-[var(--radius-sm)] px-4 py-3 flex-wrap"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
@@ -127,25 +165,24 @@ export function CompareView({ players, clubs, allStats }: Props) {
         <span className="text-[12px] font-semibold uppercase" style={{ color: 'var(--text-faint)', letterSpacing: '.06em' }}>
           Include
         </span>
-        {[
-          { key: 'club' as const, label: 'Club', badge: '(league)' },
-          { key: 'nt'   as const, label: 'Country', badge: '(VNL / Olympics / Worlds)' },
-        ].map(({ key, label, badge }) => (
-          <label key={key} className="inline-flex items-center gap-2 cursor-pointer text-[13.5px] font-medium select-none">
+        {activeComps.map((comp) => (
+          <label key={comp.id} className="inline-flex items-center gap-2 cursor-pointer text-[13.5px] font-medium select-none">
             <input
               type="checkbox"
-              checked={sources[key]}
-              onChange={(e) => setSources((s) => ({ ...s, [key]: e.target.checked }))}
+              checked={selectedComps.has(comp.id)}
+              onChange={(e) => toggleComp(comp.id, e.target.checked)}
               className="w-4 h-4 cursor-pointer"
               style={{ accentColor: 'var(--accent)' }}
             />
-            {label}
-            <span className="text-[10.5px]" style={{ color: 'var(--text-faint)' }}>{badge}</span>
+            {comp.name}
+            <span className="text-[10.5px]" style={{ color: 'var(--text-faint)' }}>
+              ({COMP_TYPE_LABEL[comp.competition_type] ?? comp.competition_type})
+            </span>
           </label>
         ))}
         <span className="text-[12.5px] ml-auto" style={{ color: 'var(--text-dim)' }}>
-          {(!sources.club && !sources.nt)
-            ? 'Pick at least one source — showing all by default.'
+          {selectedComps.size === 0
+            ? 'Pick at least one competition — showing all by default.'
             : `Showing ${sourcesLabel}. P1 ${d1.sets_played} sets · P2 ${d2.sets_played} sets`}
         </span>
       </div>
@@ -176,7 +213,7 @@ export function CompareView({ players, clubs, allStats }: Props) {
       {selfMode && (
         <p className="text-center text-sm mb-4" style={{ color: 'var(--accent)' }}>
           Same player across seasons — {
-            SEASONS.indexOf(p1Season) < SEASONS.indexOf(p2Season)
+            seasons.indexOf(p1Season) < seasons.indexOf(p2Season)
               ? `${p1Season} → ${p2Season}`
               : `${p2Season} → ${p1Season}`
           }. Δ shows raw change.
@@ -243,7 +280,7 @@ export function CompareView({ players, clubs, allStats }: Props) {
             positionGroup={p1.position_group}
             allStats={allStats}
             allPlayers={players}
-            competitionTypes={compTypeMap}
+            leagueCompIds={leagueIds}
           />
           {/* Legend */}
           <div className="flex gap-4 justify-center mt-2 text-xs" style={{ color: 'var(--text-dim)' }}>
@@ -286,7 +323,7 @@ export function CompareView({ players, clubs, allStats }: Props) {
                 positionGroup={p.position_group}
                 allStats={allStats}
                 allPlayers={players}
-                competitionTypes={compTypeMap}
+                leagueCompIds={leagueIds}
               />
               <p className="text-[11px] text-center mt-2" style={{ color: 'var(--text-faint)' }}>
                 Hover: raw value + season percentile
@@ -300,7 +337,7 @@ export function CompareView({ players, clubs, allStats }: Props) {
       <StatTable
         d1={d1} d2={d2} p1={p1} p2={p2}
         allStats={allStats} allPlayers={players}
-        competitionTypes={compTypeMap}
+        leagueCompIds={leagueIds}
       />
 
       {/* ── Reading note ───────────────────────────────────────────────────── */}
@@ -329,6 +366,3 @@ export function CompareView({ players, clubs, allStats }: Props) {
     </div>
   )
 }
-
-// Re-export for the dynamic import access in RadarChart
-import { RADAR_CONFIGS } from '@/lib/radar-config'

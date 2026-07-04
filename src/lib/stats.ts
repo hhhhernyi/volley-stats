@@ -15,7 +15,6 @@ import type {
   PlayerSeasonStats,
   AggregatedStats,
   StatKey,
-  SourceType,
   Player,
 } from './types'
 
@@ -24,30 +23,27 @@ import type {
 /**
  * Sum raw counts from one or more player_season_stats rows, then derive rates.
  * Returns null if no matching rows exist.
+ *
+ * `includeComps` selects which competitions feed the numbers (the source
+ * checkboxes). With `fallbackToAll` (the compare view), an empty selection or
+ * a selection that matches nothing falls back to every row for the
+ * player/season; percentile cohorts pass false so the cohort stays strict.
  */
 export function aggregateStats(
   rows: PlayerSeasonStats[],
   playerId: number,
   season: string,
-  useClub: boolean,
-  useNt: boolean,
-  /** Map competition_id → competition_type (to distinguish club vs NT) */
-  competitionTypes: Map<number, string>,
+  includeComps: ReadonlySet<number>,
+  fallbackToAll = true,
 ): AggregatedStats | null {
-  // Determine which source types the caller wants
-  const wantedSources = new Set<string>()
-  if (useClub) wantedSources.add('domestic_league')
-  if (useNt) wantedSources.add('national_team')
+  const filtered = rows.filter(
+    (r) =>
+      r.player_id === playerId &&
+      r.season === season &&
+      includeComps.has(r.competition_id),
+  )
 
-  const filtered = rows.filter((r) => {
-    if (r.player_id !== playerId) return false
-    if (r.season !== season) return false
-    const compType = competitionTypes.get(r.competition_id) ?? ''
-    return wantedSources.has(compType)
-  })
-
-  // Fallback: if neither source is ticked (or no matching rows), show all
-  const effective = filtered.length > 0
+  const effective = filtered.length > 0 || !fallbackToAll
     ? filtered
     : rows.filter((r) => r.player_id === playerId && r.season === season)
 
@@ -89,11 +85,7 @@ export function aggregateStats(
 
   const div = (n: number, d: number) => (d > 0 ? n / d : null)
 
-  const sources: SourceType[] = []
-  if (effective.some((r) => competitionTypes.get(r.competition_id) === 'domestic_league'))
-    sources.push('club')
-  if (effective.some((r) => competitionTypes.get(r.competition_id) === 'national_team'))
-    sources.push('nt')
+  const competition_ids = [...new Set(effective.map((r) => r.competition_id))].sort()
 
   return {
     player_id: playerId,
@@ -113,7 +105,7 @@ export function aggregateStats(
     setting_efficiency:       div(sum.assists, sum.assist_touches),
     involvement:              liberoWeighted('involvement'),
     sr_efficiency:            liberoWeighted('sr_efficiency'),
-    sources,
+    competition_ids,
   }
 }
 
@@ -134,7 +126,8 @@ export function computePercentile(
   season: string,
   allRows: PlayerSeasonStats[],
   allPlayers: Player[],
-  competitionTypes: Map<number, string>,
+  /** Domestic-league competition ids — the stable reference pool */
+  leagueCompIds: ReadonlySet<number>,
   invert = false,
 ): number | null {
   if (value == null) return null
@@ -143,7 +136,7 @@ export function computePercentile(
   const peers = allPlayers
     .filter((p) => p.position_group === playerGroup)
     .map((p) =>
-      aggregateStats(allRows, p.id, season, true, false, competitionTypes),
+      aggregateStats(allRows, p.id, season, leagueCompIds, false),
     )
     .filter((d): d is AggregatedStats => d != null && d[field] != null)
 
