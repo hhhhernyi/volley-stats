@@ -84,6 +84,7 @@ export const STAT_GROUPS: StatGroup[] = [
 // ============================================================
 
 export const LEAD_COLS_DEFAULT = [
+  { key: 'sets_played',              label: 'Sets',      fmt: 'int' },
   { key: 'points_per_set',          label: 'Pts/set',   fmt: 'num' },
   { key: 'attack_efficiency',        label: 'Att eff',   fmt: 'pct' },
   { key: 'kill_pct',                 label: 'Kill%',     fmt: 'pct' },
@@ -94,6 +95,7 @@ export const LEAD_COLS_DEFAULT = [
 ] as const
 
 export const LEAD_COLS_LIBERO = [
+  { key: 'sets_played',              label: 'Sets',        fmt: 'int' },
   { key: 'reception_positive_pct',   label: 'Rec+%',       fmt: 'pct' },
   { key: 'reception_perfect_pct',    label: 'Perfect%',    fmt: 'pct' },
   { key: 'digs_per_set',             label: 'Dig/set',     fmt: 'num' },
@@ -102,6 +104,7 @@ export const LEAD_COLS_LIBERO = [
 ] as const
 
 export const LEAD_COLS_SETTER = [
+  { key: 'sets_played',        label: 'Sets',     fmt: 'int' },
   { key: 'assists_per_set',    label: 'Ass/set',  fmt: 'num' },
   { key: 'setting_efficiency', label: 'Set eff',  fmt: 'pct' },
   { key: 'blocks_per_set',     label: 'Blk/set',  fmt: 'num' },

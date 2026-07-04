@@ -154,9 +154,10 @@ export function computePercentile(
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
-export function fmtVal(v: number | null | undefined, fmt: 'pct' | 'num'): string {
+export function fmtVal(v: number | null | undefined, fmt: 'pct' | 'num' | 'int'): string {
   if (v == null) return '—'
   if (fmt === 'pct') return (v * 100).toFixed(0) + '%'
+  if (fmt === 'int') return Math.round(v).toString()
   return v.toFixed(v < 1 ? 2 : 1)
 }
 

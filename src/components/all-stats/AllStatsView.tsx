@@ -277,80 +277,95 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
 
       {/* ── Per-column stat filters ────────────────────────────────────────── */}
       <div
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 rounded-[var(--radius-sm)] px-4 py-3"
+        className="mb-4 rounded-[var(--radius-sm)] px-4 py-3"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
-        <span
-          className="text-[10.5px] font-semibold uppercase"
-          style={{ color: 'var(--text-faint)', letterSpacing: '.06em' }}
-        >
-          Stat filters
-        </span>
-        {cols.map((col) => {
-          const f = statFilters[col.key] ?? { op: '>' as Operator, value: '' }
-          const active = !isNaN(parseFloat(f.value))
-          return (
-            <span key={col.key} className="inline-flex items-center gap-1.5 text-[12.5px]">
-              <span style={{ color: active ? 'var(--accent)' : 'var(--text-dim)', fontWeight: active ? 600 : 400 }}>
-                {col.label}
-              </span>
-              <select
-                value={f.op}
-                onChange={(e) =>
-                  setStatFilters((s) => ({ ...s, [col.key]: { ...f, op: e.target.value as Operator } }))
-                }
-                style={{
-                  background: 'var(--surface-2)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--border-2)',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '4px 5px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                  cursor: 'pointer',
-                }}
-              >
-                {OPERATORS.map((op) => (
-                  <option key={op} value={op}>{op === '>=' ? '≥' : op === '<=' ? '≤' : op}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                step="any"
-                value={f.value}
-                placeholder={col.fmt === 'pct' ? '%' : '0.0'}
-                onChange={(e) =>
-                  setStatFilters((s) => ({ ...s, [col.key]: { ...f, value: e.target.value } }))
-                }
-                className="w-[64px]"
-                style={{
-                  background: 'var(--surface-2)',
-                  color: 'var(--text)',
-                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '4px 6px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                }}
-              />
-            </span>
-          )
-        })}
-        {Object.values(statFilters).some((f) => !isNaN(parseFloat(f.value))) && (
-          <button
-            onClick={() => setStatFilters({})}
-            className="text-[12px] cursor-pointer"
-            style={{
-              background: 'transparent',
-              color: 'var(--accent)',
-              border: 'none',
-              fontFamily: 'inherit',
-              padding: '2px 4px',
-            }}
+        <div className="flex items-center justify-between mb-2.5">
+          <span
+            className="text-[10.5px] font-semibold uppercase"
+            style={{ color: 'var(--text-faint)', letterSpacing: '.06em' }}
           >
-            Clear
-          </button>
-        )}
+            Stat filters
+          </span>
+          {Object.values(statFilters).some((f) => !isNaN(parseFloat(f.value))) && (
+            <button
+              onClick={() => setStatFilters({})}
+              className="text-[12px] cursor-pointer"
+              style={{
+                background: 'transparent',
+                color: 'var(--accent)',
+                border: 'none',
+                fontFamily: 'inherit',
+                padding: 0,
+              }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+        <div
+          className="grid gap-x-5 gap-y-2"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }}
+        >
+          {cols.map((col) => {
+            const f = statFilters[col.key] ?? { op: '>' as Operator, value: '' }
+            const active = !isNaN(parseFloat(f.value))
+            return (
+              <div key={col.key} className="flex items-center gap-1.5 text-[12.5px]">
+                <span
+                  className="flex-1 truncate"
+                  style={{ color: active ? 'var(--accent)' : 'var(--text-dim)', fontWeight: active ? 600 : 400 }}
+                >
+                  {col.label}
+                </span>
+                <select
+                  value={f.op}
+                  aria-label={`${col.label} operator`}
+                  onChange={(e) =>
+                    setStatFilters((s) => ({ ...s, [col.key]: { ...f, op: e.target.value as Operator } }))
+                  }
+                  style={{
+                    background: 'var(--surface-2)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border-2)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '4px 3px',
+                    fontSize: '12px',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                    width: '44px',
+                    flexShrink: 0,
+                  }}
+                >
+                  {OPERATORS.map((op) => (
+                    <option key={op} value={op}>{op === '>=' ? '≥' : op === '<=' ? '≤' : op}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  step="any"
+                  value={f.value}
+                  placeholder={col.fmt === 'pct' ? '%' : col.fmt === 'int' ? '0' : '0.0'}
+                  aria-label={`${col.label} threshold`}
+                  onChange={(e) =>
+                    setStatFilters((s) => ({ ...s, [col.key]: { ...f, value: e.target.value } }))
+                  }
+                  style={{
+                    background: 'var(--surface-2)',
+                    color: 'var(--text)',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '4px 6px',
+                    fontSize: '12px',
+                    fontFamily: 'inherit',
+                    width: '60px',
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}

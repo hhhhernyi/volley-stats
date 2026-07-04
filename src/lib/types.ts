@@ -156,5 +156,5 @@ export interface RadarConfig {
 export interface LeadColumn {
   key: StatKey | 'name'
   label: string
-  fmt?: 'pct' | 'num'
+  fmt?: 'pct' | 'num' | 'int'
 }
