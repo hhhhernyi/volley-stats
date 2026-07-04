@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Select } from '@base-ui/react/select'
 import type { Player, Club, Competition, PlayerSeasonStats } from '@/lib/types'
-import { POS_LABEL, distinctSeasons, getClubMap, leagueCompetitionIds } from '@/lib/helpers'
+import { POS_LABEL, distinctSeasons, getClubMap, leagueCompetitionIds, natInfo } from '@/lib/helpers'
 import { aggregateStats, fmtVal } from '@/lib/stats'
 import {
   LEAD_COLS_DEFAULT,
@@ -313,7 +313,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
             return (
               <div key={col.key} className="flex items-center gap-1.5 text-[12.5px]">
                 <span
-                  className="flex-1 truncate"
+                  className="truncate"
                   style={{ color: active ? 'var(--accent)' : 'var(--text-dim)', fontWeight: active ? 600 : 400 }}
                 >
                   {col.label}
@@ -416,6 +416,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
             )}
             {rows.map(({ d, player, club, season }) => {
               const posStyle = POS_TAG_STYLE[player.primary_position] ?? {}
+              const nat = natInfo(player.nationality)
               return (
                 <tr
                   key={`${player.id}-${season}`}
@@ -440,7 +441,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
                       )}
                     </div>
                     <div className="text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
-                      {club?.full_name ?? '—'} · {player.nationality}
+                      {club?.full_name ?? '—'} · {nat.flag} {nat.full}
                     </div>
                   </td>
                   <td

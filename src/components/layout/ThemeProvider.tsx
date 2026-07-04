@@ -9,10 +9,10 @@ interface ThemeCtx {
   toggle: () => void
 }
 
-const Ctx = createContext<ThemeCtx>({ theme: 'dark', toggle: () => {} })
+const Ctx = createContext<ThemeCtx>({ theme: 'light', toggle: () => {} })
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>('light')
 
   // Apply data-theme attribute on the <html> element
   useEffect(() => {
