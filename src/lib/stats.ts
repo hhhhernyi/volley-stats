@@ -98,7 +98,10 @@ export function aggregateStats(
     blocks_per_set:           div(sum.blocks, sum.sets_played),
     aces_per_set:             div(sum.aces, sum.sets_played),
     digs_per_set:             div(sum.digs, sum.sets_played),
-    reception_positive_pct:   div(sum.rec_positive, sum.rec_attempts),
+    // volleyballworld.com doesn't publish positive receptions (rec_positive
+    // is stored 0 — see docs/DATA_SOURCES.md), so a zero here means "not
+    // tracked", not "0%". Report unavailable instead of a misleading 0%.
+    reception_positive_pct:   sum.rec_positive > 0 ? div(sum.rec_positive, sum.rec_attempts) : null,
     reception_perfect_pct:    div(sum.rec_perfect, sum.rec_attempts),
     reception_errors_per_set: div(sum.rec_errors, sum.sets_played),
     assists_per_set:          sum.assists > 0 ? div(sum.assists, sum.sets_played) : null,

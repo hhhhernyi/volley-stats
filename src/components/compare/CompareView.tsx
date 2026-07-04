@@ -32,33 +32,17 @@ interface Props {
   allStats:     PlayerSeasonStats[]
 }
 
-/** Top scorers of the latest season — a meaningful default comparison */
-function defaultSelection(allStats: PlayerSeasonStats[], seasons: string[]) {
-  const latest = seasons[seasons.length - 1]
-  const pointsByPlayer = new Map<number, number>()
-  for (const r of allStats) {
-    if (r.season !== latest) continue
-    pointsByPlayer.set(r.player_id, (pointsByPlayer.get(r.player_id) ?? 0) + r.total_points)
-  }
-  const ranked = [...pointsByPlayer.entries()].sort((a, b) => b[1] - a[1])
-  return {
-    p1Id: ranked[0]?.[0] ?? 0,
-    p2Id: ranked[1]?.[0] ?? ranked[0]?.[0] ?? 0,
-    season: latest ?? '',
-  }
-}
-
 export function CompareView({ players, clubs, competitions, allStats }: Props) {
   const seasons     = useMemo(() => distinctSeasons(allStats), [allStats])
   const activeComps = useMemo(() => competitionsInData(competitions, allStats), [competitions, allStats])
   const leagueIds   = useMemo(() => leagueCompetitionIds(competitions), [competitions])
   const clubMap     = useMemo(() => getClubMap(clubs), [clubs])
 
-  const [defaults] = useState(() => defaultSelection(allStats, seasons))
-  const [p1Id,     setP1Id]     = useState(defaults.p1Id)
-  const [p1Season, setP1Season] = useState(defaults.season)
-  const [p2Id,     setP2Id]     = useState(defaults.p2Id)
-  const [p2Season, setP2Season] = useState(defaults.season)
+  // Both slots start empty — the user picks each player
+  const [p1Id,     setP1Id]     = useState<number | null>(null)
+  const [p1Season, setP1Season] = useState('')
+  const [p2Id,     setP2Id]     = useState<number | null>(null)
+  const [p2Season, setP2Season] = useState('')
   const [overlay,  setOverlay]  = useState(false)
 
   // Source selection: one checkbox per competition present in the data
@@ -77,16 +61,16 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
 
   // Aggregate stats for each slot
   const d1 = useMemo(
-    () => aggregateStats(allStats, p1Id, p1Season, selectedComps),
+    () => p1Id == null ? null : aggregateStats(allStats, p1Id, p1Season, selectedComps),
     [allStats, p1Id, p1Season, selectedComps],
   )
   const d2 = useMemo(
-    () => aggregateStats(allStats, p2Id, p2Season, selectedComps),
+    () => p2Id == null ? null : aggregateStats(allStats, p2Id, p2Season, selectedComps),
     [allStats, p2Id, p2Season, selectedComps],
   )
 
-  const p1 = players.find((p) => p.id === p1Id)
-  const p2 = players.find((p) => p.id === p2Id)
+  const p1 = p1Id == null ? undefined : players.find((p) => p.id === p1Id)
+  const p2 = p2Id == null ? undefined : players.find((p) => p.id === p2Id)
 
   // When player changes, pick their latest available season
   function handleP1Change(id: number) {
@@ -109,23 +93,9 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
       </p>
     )
   }
-  if (!p1 || !p2 || !d1 || !d2) return null
 
-  const club1 = getClubForSeason(p1Id, p1Season, allStats, clubMap)
-  const club2 = getClubForSeason(p2Id, p2Season, allStats, clubMap)
-  const nt1   = getNtEventForSeason(p1Id, p1Season, allStats, competitions)
-  const nt2   = getNtEventForSeason(p2Id, p2Season, allStats, competitions)
-
-  const selfMode  = p1Id === p2Id
-  const sameGroup = p1.position_group === p2.position_group
-
-  const sourcesLabel =
-    selectedComps.size === activeComps.length
-      ? activeComps.length > 1 ? 'all competitions (weighted)' : activeComps[0]?.name ?? ''
-      : activeComps.filter((c) => selectedComps.has(c.id)).map((c) => c.name).join(' + ')
-
-  return (
-    <div>
+  const header = (
+    <>
       <h1
         className="text-2xl font-bold tracking-tight mt-8 mb-1"
         style={{ color: 'var(--text)' }}
@@ -136,20 +106,57 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
         Pick two players and a season for each. Tick competitions to choose which ones
         feed the numbers. Combined uses a volume-weighted average, never a naive mean.
       </p>
+    </>
+  )
 
-      {/* ── Pickers ────────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 mb-5 max-sm:grid-cols-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <PlayerPicker
-          slot={1} players={players} clubs={clubs} allStats={allStats}
-          selectedPlayerId={p1Id} selectedSeason={p1Season}
-          onPlayerChange={handleP1Change} onSeasonChange={setP1Season}
-        />
-        <PlayerPicker
-          slot={2} players={players} clubs={clubs} allStats={allStats}
-          selectedPlayerId={p2Id} selectedSeason={p2Season}
-          onPlayerChange={handleP2Change} onSeasonChange={setP2Season}
-        />
+  const pickers = (
+    <div className="grid gap-4 mb-5 max-sm:grid-cols-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <PlayerPicker
+        slot={1} players={players} clubs={clubs} allStats={allStats}
+        selectedPlayerId={p1Id} selectedSeason={p1Season}
+        onPlayerChange={handleP1Change} onSeasonChange={setP1Season}
+      />
+      <PlayerPicker
+        slot={2} players={players} clubs={clubs} allStats={allStats}
+        selectedPlayerId={p2Id} selectedSeason={p2Season}
+        onPlayerChange={handleP2Change} onSeasonChange={setP2Season}
+      />
+    </div>
+  )
+
+  // Nothing to compare until both slots are filled
+  if (!p1 || !p2 || !d1 || !d2) {
+    return (
+      <div>
+        {header}
+        {pickers}
+        <div
+          className="rounded-[var(--radius)] px-4 py-10 text-center text-sm"
+          style={{ background: 'var(--surface)', border: '1px dashed var(--border-2)', color: 'var(--text-dim)' }}
+        >
+          Pick a player in each panel to start comparing.
+        </div>
       </div>
+    )
+  }
+
+  const club1 = getClubForSeason(p1.id, p1Season, allStats, clubMap)
+  const club2 = getClubForSeason(p2.id, p2Season, allStats, clubMap)
+  const nt1   = getNtEventForSeason(p1.id, p1Season, allStats, competitions)
+  const nt2   = getNtEventForSeason(p2.id, p2Season, allStats, competitions)
+
+  const selfMode  = p1.id === p2.id
+  const sameGroup = p1.position_group === p2.position_group
+
+  const sourcesLabel =
+    selectedComps.size === activeComps.length
+      ? activeComps.length > 1 ? 'all competitions (weighted)' : activeComps[0]?.name ?? ''
+      : activeComps.filter((c) => selectedComps.has(c.id)).map((c) => c.name).join(' + ')
+
+  return (
+    <div>
+      {header}
+      {pickers}
 
       {/* ── Info board ─────────────────────────────────────────────────────── */}
       <div className="grid gap-4 mb-3.5 max-sm:grid-cols-1" style={{ gridTemplateColumns: '1fr 1fr' }}>

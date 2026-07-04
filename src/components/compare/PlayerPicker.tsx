@@ -9,7 +9,7 @@ interface Props {
   players: Player[]
   clubs: Club[]
   allStats: PlayerSeasonStats[]
-  selectedPlayerId: number
+  selectedPlayerId: number | null
   selectedSeason: string
   onPlayerChange: (playerId: number) => void
   onSeasonChange: (season: string) => void
@@ -33,6 +33,16 @@ const filterSelectStyle: React.CSSProperties = {
   padding: '7px 9px',
 }
 
+const searchStyle: React.CSSProperties = {
+  ...filterSelectStyle,
+  cursor: 'text',
+}
+
+/** Diacritic-insensitive lowercase for name search (Možič ↔ mozic) */
+function norm(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
 export function PlayerPicker({
   slot,
   players,
@@ -46,10 +56,12 @@ export function PlayerPicker({
   const color = slot === 1 ? 'var(--p1)' : 'var(--p2)'
 
   // Local filter state
+  const [query, setQuery] = React.useState('')
   const [posFilter, setPosFilter] = React.useState('')
   const [clubFilter, setClubFilter] = React.useState('')
 
   const filteredPlayers = players.filter((p) => {
+    if (query && !norm(p.name).includes(norm(query))) return false
     if (posFilter && p.primary_position !== posFilter) return false
     if (clubFilter) {
       const club = clubs.find((c) => c.short_name === clubFilter)
@@ -60,7 +72,17 @@ export function PlayerPicker({
     return true
   })
 
-  const availableSeasons = seasonsForPlayer(selectedPlayerId, allStats)
+  // Keep the current selection visible even when filters exclude it
+  const selected = selectedPlayerId != null
+    ? players.find((p) => p.id === selectedPlayerId)
+    : undefined
+  const options = selected && !filteredPlayers.some((p) => p.id === selected.id)
+    ? [selected, ...filteredPlayers]
+    : filteredPlayers
+
+  const availableSeasons = selectedPlayerId != null
+    ? seasonsForPlayer(selectedPlayerId, allStats)
+    : []
 
   return (
     <div
@@ -105,14 +127,30 @@ export function PlayerPicker({
         </select>
       </div>
 
+      {/* Name search */}
+      <input
+        type="search"
+        style={searchStyle}
+        className="mb-2"
+        placeholder="Search player…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        aria-label={`Search player ${slot}`}
+      />
+
       {/* Player + season row */}
       <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 110px' }}>
         <select
           style={selectStyle}
-          value={selectedPlayerId}
-          onChange={(e) => onPlayerChange(Number(e.target.value))}
+          value={selectedPlayerId ?? ''}
+          onChange={(e) => {
+            if (e.target.value !== '') onPlayerChange(Number(e.target.value))
+          }}
         >
-          {filteredPlayers.map((p) => (
+          <option value="" disabled>
+            {options.length === 0 ? 'No players match' : 'Select player…'}
+          </option>
+          {options.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} · {p.primary_position}
             </option>
@@ -122,7 +160,9 @@ export function PlayerPicker({
           style={{ ...selectStyle, fontSize: '13px' }}
           value={selectedSeason}
           onChange={(e) => onSeasonChange(e.target.value)}
+          disabled={selectedPlayerId == null}
         >
+          {availableSeasons.length === 0 && <option value="">Season</option>}
           {[...availableSeasons].reverse().map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
