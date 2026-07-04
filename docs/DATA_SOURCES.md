@@ -1,7 +1,8 @@
 # Data sources
 
 What competition data is loaded into the database. Update this table whenever
-a new competition or season is scraped/loaded.
+a new competition or season is scraped/loaded. Planned competitions live in
+[SCRAPING_TODO.md](SCRAPING_TODO.md).
 
 | Competition | Type | Seasons | Sources | Loaded |
 |---|---|---|---|---|
