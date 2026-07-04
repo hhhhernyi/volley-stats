@@ -90,6 +90,26 @@ function MultiSelect({ options, selected, onChange, allLabel }: MultiSelectProps
   )
 }
 
+// ── Per-column numeric filters (operator + value) ────────────────────────────
+
+const OPERATORS = ['>', '>=', '<', '<='] as const
+type Operator = typeof OPERATORS[number]
+
+interface StatFilter {
+  op: Operator
+  /** Raw input text; filter is active when this parses to a number */
+  value: string
+}
+
+function compare(v: number, op: Operator, threshold: number): boolean {
+  switch (op) {
+    case '>':  return v > threshold
+    case '>=': return v >= threshold
+    case '<':  return v < threshold
+    case '<=': return v <= threshold
+  }
+}
+
 interface Props {
   players:      Player[]
   clubs:        Club[]
@@ -103,6 +123,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
   const [seasons,     setSeasons]     = useState<string[]>(() => allSeasons.slice(-1))
   const [positions,   setPositions]   = useState<string[]>([])
   const [clubFilters, setClubFilters] = useState<string[]>([])
+  const [statFilters, setStatFilters] = useState<Record<string, StatFilter>>({})
   const [sortField, setSortField] = useState<string>('points_per_set')
   const [sortDir,  setSortDir]  = useState<-1 | 1>(-1)
 
@@ -140,6 +161,20 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
         if (clubFilters.length === 0) return true
         return club != null && clubFilters.includes(club.short_name)
       })
+      .filter(({ d }) =>
+        // Per-column numeric filters — only for currently visible columns.
+        // Pct columns are entered as displayed (50 = 50%), so scale to the
+        // underlying 0–1 value.
+        cols.every((col) => {
+          const f = statFilters[col.key]
+          if (!f) return true
+          const threshold = parseFloat(f.value)
+          if (isNaN(threshold)) return true
+          const v = d[col.key as keyof typeof d] as number | null
+          if (v == null) return false
+          return compare(v, f.op, col.fmt === 'pct' ? threshold / 100 : threshold)
+        }),
+      )
 
     return [...data].sort((a, b) => {
       if (sortField === 'name') {
@@ -149,7 +184,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
       const bv = (b.d[sortField as keyof typeof b.d] as number | null) ?? -Infinity
       return sortDir * (av - bv)
     })
-  }, [players, allStats, effectiveSeasons, positions, clubFilters, sortField, sortDir, leagueIds, clubMap])
+  }, [players, allStats, effectiveSeasons, positions, clubFilters, statFilters, cols, sortField, sortDir, leagueIds, clubMap])
 
   function handleSortClick(field: string) {
     if (sortField === field) {
@@ -238,6 +273,84 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
         >
           {rows.length} rows · {seasonsLabel}
         </span>
+      </div>
+
+      {/* ── Per-column stat filters ────────────────────────────────────────── */}
+      <div
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 rounded-[var(--radius-sm)] px-4 py-3"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <span
+          className="text-[10.5px] font-semibold uppercase"
+          style={{ color: 'var(--text-faint)', letterSpacing: '.06em' }}
+        >
+          Stat filters
+        </span>
+        {cols.map((col) => {
+          const f = statFilters[col.key] ?? { op: '>' as Operator, value: '' }
+          const active = !isNaN(parseFloat(f.value))
+          return (
+            <span key={col.key} className="inline-flex items-center gap-1.5 text-[12.5px]">
+              <span style={{ color: active ? 'var(--accent)' : 'var(--text-dim)', fontWeight: active ? 600 : 400 }}>
+                {col.label}
+              </span>
+              <select
+                value={f.op}
+                onChange={(e) =>
+                  setStatFilters((s) => ({ ...s, [col.key]: { ...f, op: e.target.value as Operator } }))
+                }
+                style={{
+                  background: 'var(--surface-2)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--border-2)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '4px 5px',
+                  fontSize: '12px',
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                {OPERATORS.map((op) => (
+                  <option key={op} value={op}>{op === '>=' ? '≥' : op === '<=' ? '≤' : op}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="any"
+                value={f.value}
+                placeholder={col.fmt === 'pct' ? '%' : '0.0'}
+                onChange={(e) =>
+                  setStatFilters((s) => ({ ...s, [col.key]: { ...f, value: e.target.value } }))
+                }
+                className="w-[64px]"
+                style={{
+                  background: 'var(--surface-2)',
+                  color: 'var(--text)',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '4px 6px',
+                  fontSize: '12px',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </span>
+          )
+        })}
+        {Object.values(statFilters).some((f) => !isNaN(parseFloat(f.value))) && (
+          <button
+            onClick={() => setStatFilters({})}
+            className="text-[12px] cursor-pointer"
+            style={{
+              background: 'transparent',
+              color: 'var(--accent)',
+              border: 'none',
+              fontFamily: 'inherit',
+              padding: '2px 4px',
+            }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}
@@ -348,7 +461,8 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
       <p className="text-xs mt-3.5 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
         Columns adapt to position — tick only <b style={{ color: 'var(--text-dim)' }}>Libero</b> and
         attack columns give way to reception and digs. With multiple seasons ticked, each
-        player-season is its own row.
+        player-season is its own row. Stat filters compare against the displayed value —
+        percentages as whole numbers (Rec+% &gt; 50), per-set stats as decimals (Ace/set &gt; 0.53).
       </p>
     </div>
   )
