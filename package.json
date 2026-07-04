@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "scrape":        "tsx scripts/scrape/run.ts",
-    "scrape:fetch":  "tsx scripts/scrape/run.ts --phase fetch",
-    "scrape:parse":  "tsx scripts/scrape/run.ts --phase parse",
-    "scrape:load":   "tsx scripts/scrape/run.ts --phase load"
+    "scrape": "tsx scripts/scrape/run.ts",
+    "scrape:fetch": "tsx scripts/scrape/run.ts --phase fetch",
+    "scrape:parse": "tsx scripts/scrape/run.ts --phase parse",
+    "scrape:load": "tsx scripts/scrape/run.ts --phase load"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -22,6 +22,7 @@
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "country-flag-emoji-polyfill": "^0.1.8",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.23.0",
     "next": "16.2.10",

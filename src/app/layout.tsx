@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Providers } from './providers'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
+import { FlagEmojiPolyfill } from '@/components/layout/FlagEmojiPolyfill'
 import { Header } from '@/components/layout/Header'
 import './globals.css'
 
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" data-theme="light" suppressHydrationWarning>
       <body>
         <ThemeProvider>
+          <FlagEmojiPolyfill />
           <Providers>
             <Header />
             <main className="mx-auto max-w-[1060px] px-5 pb-20">

@@ -57,7 +57,9 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* "Twemoji Country Flags" is a flag-only polyfill font injected on Windows
+     (unicode-range limited to flag codepoints — never affects regular text) */
+  font-family: "Twemoji Country Flags", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 15px;
   line-height: 1.5;
