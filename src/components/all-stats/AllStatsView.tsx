@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { Select } from '@base-ui/react/select'
 import type { Player, Club, Competition, PlayerSeasonStats } from '@/lib/types'
-import { distinctSeasons, getClubMap, leagueCompetitionIds } from '@/lib/helpers'
+import { POS_LABEL, distinctSeasons, getClubMap, leagueCompetitionIds } from '@/lib/helpers'
 import { aggregateStats, fmtVal } from '@/lib/stats'
 import {
   LEAD_COLS_DEFAULT,
@@ -18,16 +19,75 @@ const POS_TAG_STYLE: Record<string, { bg: string; color: string }> = {
   L:   { bg: 'rgba(127,119,221,.18)', color: '#6a62cc' },
 }
 
-const selectStyle: React.CSSProperties = {
-  background:   'var(--surface-2)',
-  color:        'var(--text)',
-  border:       '1px solid var(--border-2)',
-  borderRadius: 'var(--radius-sm)',
-  padding:      '7px 10px',
-  fontSize:     '13px',
-  fontFamily:   'inherit',
-  cursor:       'pointer',
-  minWidth:     '120px',
+// ── Multi-select filter dropdown (tick any number of options) ────────────────
+
+interface MultiSelectProps {
+  options: { value: string; label: string }[]
+  selected: string[]
+  onChange: (values: string[]) => void
+  /** Trigger text when nothing is ticked (= no filtering) */
+  allLabel: string
+}
+
+function MultiSelect({ options, selected, onChange, allLabel }: MultiSelectProps) {
+  const summary =
+    selected.length === 0 ? allLabel :
+    selected.length === 1 ? (options.find((o) => o.value === selected[0])?.label ?? selected[0]) :
+    `${selected.length} selected`
+
+  return (
+    <Select.Root
+      multiple
+      value={selected}
+      onValueChange={(values: string[]) => onChange(values)}
+    >
+      <Select.Trigger
+        className="flex items-center justify-between gap-2 cursor-pointer min-w-[140px]"
+        style={{
+          background:   'var(--surface-2)',
+          color:        'var(--text)',
+          border:       '1px solid var(--border-2)',
+          borderRadius: 'var(--radius-sm)',
+          padding:      '7px 10px',
+          fontSize:     '13px',
+          fontFamily:   'inherit',
+        }}
+      >
+        <span className={selected.length > 0 ? '' : 'opacity-80'}>{summary}</span>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden
+          style={{ color: 'var(--text-faint)', flexShrink: 0 }}>
+          <path d="M12 6H4l4 4.5z" />
+        </svg>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Positioner className="isolate z-50 outline-none" sideOffset={4} alignItemWithTrigger={false}>
+          <Select.Popup
+            className="max-h-[min(20rem,var(--available-height))] min-w-(--anchor-width) overflow-y-auto overscroll-contain rounded-[var(--radius-sm)] py-1 shadow-lg"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border-2)',
+              color: 'var(--text)',
+            }}
+          >
+            {options.map((o) => (
+              <Select.Item
+                key={o.value}
+                value={o.value}
+                className="grid grid-cols-[16px_1fr] items-center gap-2 px-3 py-1.5 text-[13px] cursor-pointer select-none outline-none data-highlighted:bg-(--surface-2)"
+              >
+                <Select.ItemIndicator className="col-start-1">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="m2.5 8.5 4 4 7-9" />
+                  </svg>
+                </Select.ItemIndicator>
+                <Select.ItemText className="col-start-2">{o.label}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Popup>
+        </Select.Positioner>
+      </Select.Portal>
+    </Select.Root>
+  )
 }
 
 interface Props {
@@ -38,46 +98,49 @@ interface Props {
 }
 
 export function AllStatsView({ players, clubs, competitions, allStats }: Props) {
-  const seasons = useMemo(() => distinctSeasons(allStats), [allStats])
+  const allSeasons = useMemo(() => distinctSeasons(allStats), [allStats])
 
-  const [season,   setSeason]   = useState(() => seasons[seasons.length - 1] ?? '')
-  const [posFilter, setPosFilter] = useState('')
-  const [clubFilter, setClubFilter] = useState('')
+  const [seasons,     setSeasons]     = useState<string[]>(() => allSeasons.slice(-1))
+  const [positions,   setPositions]   = useState<string[]>([])
+  const [clubFilters, setClubFilters] = useState<string[]>([])
   const [sortField, setSortField] = useState<string>('points_per_set')
   const [sortDir,  setSortDir]  = useState<-1 | 1>(-1)
 
   const leagueIds = useMemo(() => leagueCompetitionIds(competitions), [competitions])
   const clubMap   = useMemo(() => getClubMap(clubs), [clubs])
 
-  // Pick columns based on position filter
-  const cols = posFilter === 'L' ? LEAD_COLS_LIBERO
-             : posFilter === 'S' ? LEAD_COLS_SETTER
+  // Empty selection = no filtering
+  const effectiveSeasons = seasons.length > 0 ? seasons : allSeasons
+  const multiSeason = effectiveSeasons.length > 1
+
+  // Pick columns based on position filter (specialised sets only when
+  // exactly that one position is ticked)
+  const cols = positions.length === 1 && positions[0] === 'L' ? LEAD_COLS_LIBERO
+             : positions.length === 1 && positions[0] === 'S' ? LEAD_COLS_SETTER
              : LEAD_COLS_DEFAULT
 
-  // Build leaderboard rows
+  // Build leaderboard rows — one row per player per selected season
   const rows = useMemo(() => {
     const data = players
-      .filter((p) => !posFilter || p.primary_position === posFilter)
-      .map((p) => {
-        const d = aggregateStats(allStats, p.id, season, leagueIds, false)
-        if (!d) return null
-        // Find club for this player/season
-        const statsRow = allStats.find(
-          (r) => r.player_id === p.id && r.season === season && r.club_id != null,
-        )
-        const club = statsRow?.club_id ? clubMap.get(statsRow.club_id) : undefined
-        return { d, player: p, club }
-      })
+      .filter((p) => positions.length === 0 || positions.includes(p.primary_position))
+      .flatMap((p) =>
+        effectiveSeasons.map((season) => {
+          const d = aggregateStats(allStats, p.id, season, leagueIds, false)
+          if (!d) return null
+          // Find club for this player/season
+          const statsRow = allStats.find(
+            (r) => r.player_id === p.id && r.season === season && r.club_id != null,
+          )
+          const club = statsRow?.club_id ? clubMap.get(statsRow.club_id) : undefined
+          return { d, player: p, club, season }
+        }),
+      )
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .filter(({ club }) => {
-        if (!clubFilter) return true
-        return club?.short_name === clubFilter
+        if (clubFilters.length === 0) return true
+        return club != null && clubFilters.includes(club.short_name)
       })
 
-    // Sort
-    if (!cols.some((c) => c.key === sortField) && sortField !== 'name') {
-      // sortField no longer in current column set — reset
-    }
     return [...data].sort((a, b) => {
       if (sortField === 'name') {
         return sortDir * a.player.name.localeCompare(b.player.name)
@@ -86,7 +149,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
       const bv = (b.d[sortField as keyof typeof b.d] as number | null) ?? -Infinity
       return sortDir * (av - bv)
     })
-  }, [players, allStats, season, posFilter, clubFilter, sortField, sortDir, leagueIds, clubMap, cols])
+  }, [players, allStats, effectiveSeasons, positions, clubFilters, sortField, sortDir, leagueIds, clubMap])
 
   function handleSortClick(field: string) {
     if (sortField === field) {
@@ -102,50 +165,54 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
       ? <span style={{ color: 'var(--accent)', marginLeft: '3px' }}>{sortDir < 0 ? '▼' : '▲'}</span>
       : null
 
+  const seasonsLabel =
+    seasons.length === 0 ? 'all seasons' :
+    [...seasons].sort().join(', ')
+
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight mt-8 mb-1" style={{ color: 'var(--text)' }}>
         All stats
       </h1>
       <p className="text-sm mb-6" style={{ color: 'var(--text-dim)' }}>
-        Filter and sort the full pool for one season (club league stats). Click any header to sort.
+        Filter and sort the full pool (club league stats). Tick any combination of seasons,
+        positions, and clubs — leaving a filter empty includes everything. Click any header to sort.
       </p>
 
       {/* ── Filters ────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2.5 mb-4 items-center">
         {[
           {
-            label: 'Season',
+            label: 'Seasons',
             node: (
-              <select style={selectStyle} value={season} onChange={(e) => setSeason(e.target.value)}>
-                {[...seasons].reverse().map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <MultiSelect
+                options={[...allSeasons].reverse().map((s) => ({ value: s, label: s }))}
+                selected={seasons}
+                onChange={setSeasons}
+                allLabel="All seasons"
+              />
             ),
           },
           {
-            label: 'Position',
+            label: 'Positions',
             node: (
-              <select style={selectStyle} value={posFilter} onChange={(e) => { setPosFilter(e.target.value); setSortField('points_per_set') }}>
-                <option value="">All positions</option>
-                <option value="OH">Outside (OH)</option>
-                <option value="OPP">Opposite (OPP)</option>
-                <option value="MB">Middle (MB)</option>
-                <option value="S">Setter (S)</option>
-                <option value="L">Libero (L)</option>
-              </select>
+              <MultiSelect
+                options={Object.entries(POS_LABEL).map(([k, v]) => ({ value: k, label: `${v} (${k})` }))}
+                selected={positions}
+                onChange={(v) => { setPositions(v); setSortField('points_per_set') }}
+                allLabel="All positions"
+              />
             ),
           },
           {
-            label: 'Club',
+            label: 'Clubs',
             node: (
-              <select style={selectStyle} value={clubFilter} onChange={(e) => setClubFilter(e.target.value)}>
-                <option value="">All clubs</option>
-                {clubs.map((c) => (
-                  <option key={c.id} value={c.short_name}>{c.full_name}</option>
-                ))}
-              </select>
+              <MultiSelect
+                options={clubs.map((c) => ({ value: c.short_name, label: c.full_name }))}
+                selected={clubFilters}
+                onChange={setClubFilters}
+                allLabel="All clubs"
+              />
             ),
           },
         ].map(({ label, node }) => (
@@ -169,7 +236,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
             border:      '1px solid var(--border)',
           }}
         >
-          {rows.length} players · {season}
+          {rows.length} rows · {seasonsLabel}
         </span>
       </div>
 
@@ -219,11 +286,11 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
                 </td>
               </tr>
             )}
-            {rows.map(({ d, player, club }) => {
+            {rows.map(({ d, player, club, season }) => {
               const posStyle = POS_TAG_STYLE[player.primary_position] ?? {}
               return (
                 <tr
-                  key={player.id}
+                  key={`${player.id}-${season}`}
                   className="transition-colors duration-100"
                   style={{ ['--hover-bg' as string]: 'var(--surface-2)' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
@@ -235,6 +302,14 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
                   >
                     <div className="font-semibold" style={{ color: 'var(--text)' }}>
                       {player.name}
+                      {multiSeason && (
+                        <span
+                          className="inline-block text-[10.5px] font-bold px-1.5 py-0.5 rounded ml-2 align-middle"
+                          style={{ background: 'var(--surface-2)', color: 'var(--text-dim)' }}
+                        >
+                          {season}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
                       {club?.full_name ?? '—'} · {player.nationality}
@@ -271,8 +346,9 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
       </div>
 
       <p className="text-xs mt-3.5 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
-        Columns adapt to position — pick <b style={{ color: 'var(--text-dim)' }}>Libero</b> and
-        attack columns give way to reception and digs.
+        Columns adapt to position — tick only <b style={{ color: 'var(--text-dim)' }}>Libero</b> and
+        attack columns give way to reception and digs. With multiple seasons ticked, each
+        player-season is its own row.
       </p>
     </div>
   )
