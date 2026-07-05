@@ -118,7 +118,7 @@ export function PlayerPicker({
       </div>
 
       {/* Player combobox + season row */}
-      <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 110px' }}>
+      <div className="grid gap-2 grid-cols-[1fr_110px]">
         <Combobox.Root
           items={filteredPlayers}
           value={selected}

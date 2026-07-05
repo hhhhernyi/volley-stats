@@ -110,7 +110,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
   )
 
   const pickers = (
-    <div className="grid gap-4 mb-5 max-sm:grid-cols-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
+    <div className="grid gap-4 mb-5 grid-cols-1 sm:grid-cols-2">
       <PlayerPicker
         slot={1} players={players} clubs={clubs} allStats={allStats}
         selectedPlayerId={p1Id} selectedSeason={p1Season}
@@ -160,7 +160,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
       {pickers}
 
       {/* ── Info board ─────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 mb-3.5 max-sm:grid-cols-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="grid gap-4 mb-3.5 grid-cols-1 sm:grid-cols-2">
         <BioCard player={p1} aggregated={d1} club={club1} ntEvent={nt1} slot={1} />
         <BioCard player={p2} aggregated={d2} club={club2} ntEvent={nt2} slot={2} />
       </div>
@@ -196,7 +196,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
       </div>
 
       {/* ── VS band ────────────────────────────────────────────────────────── */}
-      <div className="grid items-center gap-3 mb-4" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+      <div className="grid items-center gap-3 mb-4 grid-cols-[1fr_auto_1fr]">
         <span className="text-sm" style={{ color: 'var(--text-dim)' }}>
           {lastName(p1.name)}{' '}
           <span
@@ -308,7 +308,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
         </div>
       ) : (
         // Side-by-side individual charts
-        <div className="grid gap-4 mb-5 max-sm:grid-cols-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className="grid gap-4 mb-5 grid-cols-1 sm:grid-cols-2">
           {[
             { d: d1, p: p1, season: p1Season, borderColor: '#e2483f', bgColor: 'rgba(226,72,63,.22)' },
             { d: d2, p: p2, season: p2Season, borderColor: '#3787dd', bgColor: 'rgba(55,135,221,.22)' },

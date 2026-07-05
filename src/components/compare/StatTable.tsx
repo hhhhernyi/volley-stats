@@ -82,7 +82,7 @@ export function StatTable({ d1, d2, p1, p2, allStats, allPlayers, leagueCompIds 
 
   return (
     <div
-      className="rounded-[var(--radius)] overflow-hidden mb-5"
+      className="rounded-[var(--radius)] overflow-x-auto mb-5"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
     >
       <table className="w-full border-collapse text-[13.5px]">
