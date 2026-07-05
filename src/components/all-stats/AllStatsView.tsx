@@ -134,6 +134,23 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
   const effectiveSeasons = seasons.length > 0 ? seasons : allSeasons
   const multiSeason = effectiveSeasons.length > 1
 
+  // Which seasons each player actually has, plus a club lookup per
+  // player-season — avoids scanning all stats rows for every combination
+  const seasonIndex = useMemo(() => {
+    const seasonsByPlayer = new Map<number, Set<string>>()
+    const clubByPlayerSeason = new Map<string, number>()
+    for (const r of allStats) {
+      let s = seasonsByPlayer.get(r.player_id)
+      if (!s) { s = new Set(); seasonsByPlayer.set(r.player_id, s) }
+      s.add(r.season)
+      const key = `${r.player_id}|${r.season}`
+      if (r.club_id != null && !clubByPlayerSeason.has(key)) {
+        clubByPlayerSeason.set(key, r.club_id)
+      }
+    }
+    return { seasonsByPlayer, clubByPlayerSeason }
+  }, [allStats])
+
   // Pick columns based on position filter (specialised sets only when
   // exactly that one position is ticked)
   const cols = positions.length === 1 && positions[0] === 'L' ? LEAD_COLS_LIBERO
@@ -144,18 +161,19 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
   const rows = useMemo(() => {
     const data = players
       .filter((p) => positions.length === 0 || (p.primary_position != null && positions.includes(p.primary_position)))
-      .flatMap((p) =>
-        effectiveSeasons.map((season) => {
-          const d = aggregateStats(allStats, p.id, season, leagueIds, false)
-          if (!d) return null
-          // Find club for this player/season
-          const statsRow = allStats.find(
-            (r) => r.player_id === p.id && r.season === season && r.club_id != null,
-          )
-          const club = statsRow?.club_id ? clubMap.get(statsRow.club_id) : undefined
-          return { d, player: p, club, season }
-        }),
-      )
+      .flatMap((p) => {
+        const played = seasonIndex.seasonsByPlayer.get(p.id)
+        if (!played) return []
+        return effectiveSeasons
+          .filter((season) => played.has(season))
+          .map((season) => {
+            const d = aggregateStats(allStats, p.id, season, leagueIds, false)
+            if (!d) return null
+            const clubId = seasonIndex.clubByPlayerSeason.get(`${p.id}|${season}`)
+            const club = clubId != null ? clubMap.get(clubId) : undefined
+            return { d, player: p, club, season }
+          })
+      })
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .filter(({ club }) => {
         if (clubFilters.length === 0) return true
@@ -184,7 +202,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
       const bv = (b.d[sortField as keyof typeof b.d] as number | null) ?? -Infinity
       return sortDir * (av - bv)
     })
-  }, [players, allStats, effectiveSeasons, positions, clubFilters, statFilters, cols, sortField, sortDir, leagueIds, clubMap])
+  }, [players, allStats, effectiveSeasons, positions, clubFilters, statFilters, cols, sortField, sortDir, leagueIds, clubMap, seasonIndex])
 
   function handleSortClick(field: string) {
     if (sortField === field) {

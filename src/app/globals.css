@@ -78,3 +78,16 @@ html, body {
   --color-border:     var(--border);
   --color-ring:       var(--accent);
 }
+
+/* ── Loading spinner (route-level loading.tsx) ─────────────────────────────── */
+.app-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border-2);
+  border-top-color: var(--accent);
+  animation: app-spin 0.8s linear infinite;
+}
+@keyframes app-spin {
+  to { transform: rotate(360deg); }
+}

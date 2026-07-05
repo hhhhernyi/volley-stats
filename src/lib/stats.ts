@@ -18,6 +18,28 @@ import type {
   Player,
 } from './types'
 
+// ── Row index ─────────────────────────────────────────────────────────────────
+// The stats pool is one stable array per page load, but aggregation used to
+// re-scan all of it (5k+ rows) for every player — the compare page's
+// percentile cohorts made that ~85M row checks per selection change. Index
+// rows by player once per array identity instead.
+
+const statsIndexCache = new WeakMap<PlayerSeasonStats[], Map<number, PlayerSeasonStats[]>>()
+
+function rowsForPlayer(allRows: PlayerSeasonStats[], playerId: number): PlayerSeasonStats[] {
+  let idx = statsIndexCache.get(allRows)
+  if (!idx) {
+    idx = new Map()
+    for (const r of allRows) {
+      const list = idx.get(r.player_id)
+      if (list) list.push(r)
+      else idx.set(r.player_id, [r])
+    }
+    statsIndexCache.set(allRows, idx)
+  }
+  return idx.get(playerId) ?? []
+}
+
 // ── Aggregation ───────────────────────────────────────────────────────────────
 
 /**
@@ -36,16 +58,14 @@ export function aggregateStats(
   includeComps: ReadonlySet<number>,
   fallbackToAll = true,
 ): AggregatedStats | null {
-  const filtered = rows.filter(
-    (r) =>
-      r.player_id === playerId &&
-      r.season === season &&
-      includeComps.has(r.competition_id),
+  const playerRows = rowsForPlayer(rows, playerId)
+  const filtered = playerRows.filter(
+    (r) => r.season === season && includeComps.has(r.competition_id),
   )
 
   const effective = filtered.length > 0 || !fallbackToAll
     ? filtered
-    : rows.filter((r) => r.player_id === playerId && r.season === season)
+    : playerRows.filter((r) => r.season === season)
 
   if (effective.length === 0) return null
 
@@ -139,14 +159,26 @@ export function computePercentile(
 ): number | null {
   if (value == null || playerGroup == null) return null
 
-  // Build the cohort: club-only aggregate for every player in the same group
-  const peers = allPlayers
-    .filter((p) => p.position_group === playerGroup)
-    .map((p) =>
-      aggregateStats(allRows, p.id, season, leagueCompIds, false),
-    )
-    .filter((d): d is AggregatedStats => d != null && d[field] != null)
+  // The cohort's aggregates are identical for every stat of the same
+  // group/season/pool — cache them so a 13-row stat table builds the cohort
+  // once, not 13 times.
+  let seasonCache = cohortCache.get(allRows)
+  if (!seasonCache) {
+    seasonCache = new Map()
+    cohortCache.set(allRows, seasonCache)
+  }
+  const key = `${playerGroup}|${season}|${allPlayers.length}|${[...leagueCompIds].sort((a, b) => a - b).join(',')}`
+  let cohort = seasonCache.get(key)
+  if (!cohort) {
+    // Club-only aggregate for every player in the same group
+    cohort = allPlayers
+      .filter((p) => p.position_group === playerGroup)
+      .map((p) => aggregateStats(allRows, p.id, season, leagueCompIds, false))
+      .filter((d): d is AggregatedStats => d != null)
+    seasonCache.set(key, cohort)
+  }
 
+  const peers = cohort.filter((d) => d[field] != null)
   if (peers.length < 2) return null
 
   const below = peers.filter((d) =>
@@ -155,6 +187,8 @@ export function computePercentile(
 
   return Math.round((below / (peers.length - 1)) * 100)
 }
+
+const cohortCache = new WeakMap<PlayerSeasonStats[], Map<string, AggregatedStats[]>>()
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
