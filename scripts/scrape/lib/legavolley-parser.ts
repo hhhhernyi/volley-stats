@@ -90,8 +90,10 @@ export function parseTeamStatsTable(html: string): LegaPlayerRow[] {
     if (cells.length === 25) cells.splice(4, 1)
 
     const name = cells[0].replace(/ /g, ' ').trim()
-    // Skip aggregate rows (e.g. team totals) — they have no personal name
-    if (!name || /^tot/i.test(name)) return
+    // Skip aggregate rows (e.g. team totals) — they have no personal name.
+    // 1998/99 totals rows drop the name cell entirely, so the first cell is
+    // the squad's athlete count — hence the numeric guard.
+    if (!name || /^tot/i.test(name) || /^\d+$/.test(name)) return
 
     rows.push({
       name,
