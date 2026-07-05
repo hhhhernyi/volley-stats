@@ -4,10 +4,15 @@ What competition data is loaded into the database. Update this table whenever
 a new competition or season is scraped/loaded. Planned competitions live in
 [SCRAPING_TODO.md](SCRAPING_TODO.md).
 
+**Coverage: SuperLega (Italy, men) — every season from 1998/99 through
+2025/26, 28 in total.** That is the full extent of per-player data published
+online: legavolley's archive starts at 1998/99 (rally-scoring era) and
+volleyballworld starts at 2021/22.
+
 | Competition | Type | Seasons | Sources | Loaded |
 |---|---|---|---|---|
-| SuperLega (Italy, men) | domestic_league | 2021/22 – 2025/26 (hybrid) | legavolley.it (authoritative) + volleyballworld.com | 2026-07-05 |
-| SuperLega (Italy, men) | domestic_league | 1998/99 – 2020/21 (lega-only) | legavolley.it only | 2026-07-05 |
+| SuperLega (Italy, men) | domestic_league | 2021/22 – 2025/26 (hybrid, 5 seasons) | legavolley.it (authoritative) + volleyballworld.com | 2026-07-05 |
+| SuperLega (Italy, men) | domestic_league | 1998/99 – 2020/21 (lega-only, 23 seasons) | legavolley.it only (bios via player profiles) | 2026-07-05 |
 
 ## Two season classes
 

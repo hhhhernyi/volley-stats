@@ -1,8 +1,9 @@
 # Scraping roadmap
 
 Competitions to add, in priority order. See `docs/DATA_SOURCES.md` for what's
-already loaded (SuperLega men 2021/22–2024/25) and how the current pipeline
-works. Check items off and move them into DATA_SOURCES.md as they land.
+already loaded (SuperLega men, all 28 seasons 1998/99–2025/26) and how the
+current pipeline works. Check items off and move them into DATA_SOURCES.md as
+they land.
 
 ## Priority list
 
