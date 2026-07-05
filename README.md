@@ -1,20 +1,31 @@
 # VolleyStat
 
-Volleyball player statistics comparison dashboard — personal portfolio + analysis tool.
+Volleyball player statistics dashboard — 28 seasons of Italian SuperLega
+(1998/99–2025/26, 5,000+ player-seasons) scraped from official league
+sources, with player comparison radars and a filterable leaderboard.
+
+**How it all fits together:** [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) ·
+**What's loaded:** [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) ·
+**Roadmap:** [docs/SCRAPING_TODO.md](docs/SCRAPING_TODO.md)
 
 ## Stack
 
-- **Next.js 16** (App Router) + TypeScript
-- **Supabase** (Postgres) — raw counts data model
-- **TanStack Query** — client-side data layer
-- **Chart.js** via `react-chartjs-2` — radar charts
-- **Tailwind CSS** + **shadcn/ui**
+- **Next.js 16** (App Router, React server components) + **TypeScript**
+- **Supabase (PostgreSQL)** — raw-counts data model; all rates derived at read time
+- **Chart.js** via `react-chartjs-2` — position-specific radar charts
+- **Tailwind CSS v4** + Base UI / shadcn-style components — themed light/dark UI
+- **Node.js ETL scraper** (`tsx` + `cheerio`) — fetch → parse → load pipeline
+  against legavolley.it (official stats) and volleyballworld.com (bios, digs/assists)
 - **Vercel** deploy target
 
 ## Pages
 
-- `/compare` — pick 2 players × seasons, stat table + position radars, overlay toggle, club/NT source selector
-- `/all-stats` — sortable/filterable leaderboard; columns adapt by position group
+- `/compare` — pick 2 players × seasons: bio cards, stat table with season
+  percentiles, position radars (fixed-scale shapes, percentile on hover),
+  overlay toggle, club/NT source selector
+- `/all-stats` — sortable leaderboard, one row per player-season; filters for
+  season/position/club plus per-column numeric filters; columns adapt to the
+  selected position group
 
 ## Setup
 
@@ -24,43 +35,22 @@ npm install
 
 # 2. Configure Supabase
 cp .env.local.example .env.local
-# Fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+# and (for the scraper) SUPABASE_SERVICE_ROLE_KEY
 
-# 3. Run migration in Supabase SQL editor
-#    Paste contents of: supabase/migrations/001_schema.sql
+# 3. Run migrations in the Supabase SQL editor, in order:
+#    supabase/migrations/001_schema.sql
+#    supabase/migrations/002_add_external_ids.sql
+#    supabase/migrations/003_lega_only_seasons.sql
 
-# 4. Seed mock data (requires SUPABASE_SERVICE_ROLE_KEY in .env.local)
-npm run seed
+# 4. Scrape + load real data (seasons configured in scripts/scrape/lib/constants.ts)
+npm run scrape                 # fetch → parse → load, all seasons
+npx tsx scripts/scrape/enrich-bios.ts   # backfill historical player bios
 
-# 5. Start dev server
-
-```bash
+# 5. Start the dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000). The UI is fully
+data-driven — seasons, competitions, and filters all derive from whatever is
+in the database.
