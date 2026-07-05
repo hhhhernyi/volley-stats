@@ -23,7 +23,7 @@ import type { ParsedPlayerSeason } from './lib/types.js'
 // Supabase admin client
 // ---------------------------------------------------------------------------
 
-function getSupabaseAdmin(): SupabaseClient {
+export function getSupabaseAdmin(): SupabaseClient {
   const url = process.env['NEXT_PUBLIC_SUPABASE_URL']
   const key = process.env['SUPABASE_SERVICE_ROLE_KEY']
 

@@ -169,6 +169,37 @@ export function legavolleyIndexPath(season: string): string {
   return `${LANDING_ROOT}/legavolley/${season}/index.html`
 }
 
+/**
+ * Any ATLETA-stat page — used only to read the per-season athlete dropdown,
+ * whose option values are player profile codes ('BOY-STE-96').
+ */
+export function legavolleyAtletaIndexUrl(year: number): string {
+  return `${LEGAVOLLEY_BASE}/statistiche/?TipoStat=2.3&Serie=1&AnnoInizio=${year}&Fase=3&Giornata=0`
+}
+
+export function legavolleyAtletaIndexPath(season: string): string {
+  return `${LANDING_ROOT}/legavolley/${season}/atleti.html`
+}
+
+/** Player profile page: title "Cognome Nome", Ruolo, Nascita, Altezza, Naz.Sportiva */
+export function legavolleyPlayerProfileUrl(code: string): string {
+  return `${LEGAVOLLEY_BASE}/player/${encodeURIComponent(code)}`
+}
+
+/** Season-independent cache — profiles change rarely, cache forever */
+export function legavolleyPlayerProfilePath(code: string): string {
+  return `${LANDING_ROOT}/legavolley/players/${code}.html`
+}
+
+/** legavolley Ruolo → DB position_enum. Unknown roles are skipped with a warning. */
+export const LEGA_ROLE_TO_POSITION: Record<string, string> = {
+  'Schiacciatore': 'OH',
+  'Opposto':       'OPP',
+  'Centrale':      'MB',
+  'Palleggiatore': 'S',
+  'Libero':        'L',
+}
+
 export function legavolleyTeamStatsPath(season: string, teamCode: string): string {
   return `${LANDING_ROOT}/legavolley/${season}/${teamCode}.html`
 }

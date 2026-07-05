@@ -15,11 +15,17 @@ a new competition or season is scraped/loaded. Planned competitions live in
   below. volleyballworld has no SuperLega before 2021/22 (verified: the
   2020-2021 season URL 404s), so this class cannot extend further back.
 - **lega-only (1998/99 – 2020/21)** — built from legavolley.it stats tables
-  alone (`source: 'lega-only'` in `SEASONS`). Names + counting stats only:
-  **no positions, bios, digs, or assists** (all null). `sets_played` is exact
-  and `rec_positive` is real (Tot − Err − Neg). legavolley has no per-player
-  data before 1998/99. The 1998/99 table has an extra side-out-era `PUNTI CP`
-  column, handled by row length in `legavolley-parser.ts`.
+  alone (`source: 'lega-only'` in `SEASONS`). Names + counting stats; **no
+  digs or assists** (null). `sets_played` is exact and `rec_positive` is real
+  (Tot − Err − Neg). legavolley has no per-player data before 1998/99. The
+  1998/99 table has an extra side-out-era `PUNTI CP` column, handled by row
+  length in `legavolley-parser.ts`.
+  **Bios (position, birthday, height, nationality) are backfilled** by
+  `scripts/scrape/enrich-bios.ts` from legavolley player profile pages
+  (`/player/<COG-NOM-YY>`), discovered via the per-season athlete dropdown on
+  the `TipoStat=2.3` stats page. Fills null fields only; ~94% matched
+  (2026-07-05: nulls 1,138 → 65 — the residue is dropdown/stats-table name
+  mismatches, typically extra middle names).
   Players spanning both eras are linked by order-insensitive name matching
   (legavolley lists "Cognome Nome") and keep their vw-era bio; lega-only-era
   players get name-only rows (two-token names flipped to "Nome Cognome";
