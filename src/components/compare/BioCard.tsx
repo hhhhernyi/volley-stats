@@ -18,7 +18,7 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
 
   return (
     <div
-      className="rounded-[var(--radius)] p-4 flex gap-3.5"
+      className="rounded-[var(--radius)] p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:gap-3.5"
       style={{
         background:   'var(--surface)',
         border:       '1px solid var(--border)',
@@ -28,7 +28,7 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
     >
       {/* Avatar */}
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg tracking-tight flex-shrink-0"
+        className="w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-bold text-sm sm:text-lg tracking-tight flex-shrink-0"
         style={{ background: softBg, color: accent, border: `1.5px solid ${accent}` }}
       >
         {player.image_url
@@ -39,7 +39,7 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
 
       {/* Bio info */}
       <div className="flex-1 min-w-0">
-        <div className="text-[17px] font-bold tracking-tight leading-tight" style={{ color: 'var(--text)' }}>
+        <div className="text-[14px] sm:text-[17px] font-bold tracking-tight leading-tight" style={{ color: 'var(--text)' }}>
           {player.name}
         </div>
         <span
@@ -49,27 +49,27 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
           {player.primary_position ? POS_LABEL[player.primary_position] : 'Position unknown'}
         </span>
 
-        {/* Stats grid */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12.5px]">
+        {/* Stats grid — one field per line on mobile, wrapping row on desktop */}
+        <div className="flex flex-col gap-y-1 sm:flex-row sm:flex-wrap sm:gap-x-4 mt-2 text-[12px] sm:text-[12.5px]">
           {player.height_cm && (
-            <span className="flex gap-1">
+            <span className="flex gap-1 justify-between sm:justify-start">
               <span style={{ color: 'var(--text-faint)' }}>Height</span>
               <span className="font-semibold" style={{ color: 'var(--text)' }}>{player.height_cm} cm</span>
             </span>
           )}
           {player.weight_kg && (
-            <span className="flex gap-1">
+            <span className="flex gap-1 justify-between sm:justify-start">
               <span style={{ color: 'var(--text-faint)' }}>Weight</span>
               <span className="font-semibold" style={{ color: 'var(--text)' }}>{player.weight_kg} kg</span>
             </span>
           )}
           {player.birthday && (
             <>
-              <span className="flex gap-1">
+              <span className="flex gap-1 justify-between sm:justify-start">
                 <span style={{ color: 'var(--text-faint)' }}>Born</span>
-                <span className="font-semibold" style={{ color: 'var(--text)' }}>{fmtDob(player.birthday)}</span>
+                <span className="font-semibold text-right" style={{ color: 'var(--text)' }}>{fmtDob(player.birthday)}</span>
               </span>
-              <span className="flex gap-1">
+              <span className="flex gap-1 justify-between sm:justify-start">
                 <span style={{ color: 'var(--text-faint)' }}>Age</span>
                 <span className="font-semibold" style={{ color: 'var(--text)' }}>{computeAge(player.birthday)}</span>
               </span>
@@ -88,9 +88,9 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
               >
                 {club.short_name.replace('Cucine ', '').slice(0, 2).toUpperCase()}
               </span>
-              <span className="font-medium" style={{ color: 'var(--text)' }}>{club.full_name}</span>
+              <span className="font-medium min-w-0 break-words" style={{ color: 'var(--text)' }}>{club.full_name}</span>
               <span
-                className="text-[10.5px] uppercase tracking-widest ml-auto"
+                className="text-[10.5px] uppercase tracking-widest ml-auto max-sm:hidden"
                 style={{ color: 'var(--text-faint)', letterSpacing: '.05em' }}
               >
                 Club
@@ -99,10 +99,10 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
           )}
           <div className="flex items-center gap-2 text-[12.5px]">
             <span className="text-[17px] leading-none w-[22px] text-center flex-shrink-0">{nat.flag}</span>
-            <span className="font-medium" style={{ color: 'var(--text)' }}>{nat.full}</span>
+            <span className="font-medium min-w-0 break-words" style={{ color: 'var(--text)' }}>{nat.full}</span>
             {ntEvent && (
               <span
-                className="text-[10.5px] uppercase tracking-widest ml-auto"
+                className="text-[10.5px] uppercase tracking-widest ml-auto max-sm:hidden"
                 style={{ color: 'var(--text-faint)', letterSpacing: '.05em' }}
               >
                 {ntEvent}

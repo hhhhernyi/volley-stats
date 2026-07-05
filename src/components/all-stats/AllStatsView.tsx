@@ -322,20 +322,23 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
           )}
         </div>
         <div
-          className="grid gap-x-5 gap-y-2"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }}
+          className="grid gap-x-3 gap-y-2 grid-cols-2 sm:gap-x-5 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]"
         >
           {cols.map((col) => {
             const f = statFilters[col.key] ?? { op: '>' as Operator, value: '' }
             const active = !isNaN(parseFloat(f.value))
             return (
-              <div key={col.key} className="flex items-center gap-1.5 text-[12.5px]">
+              <div
+                key={col.key}
+                className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-1.5 text-[12.5px]"
+              >
                 <span
-                  className="truncate"
+                  className="truncate max-w-full"
                   style={{ color: active ? 'var(--accent)' : 'var(--text-dim)', fontWeight: active ? 600 : 400 }}
                 >
                   {col.label}
                 </span>
+                <div className="flex items-center gap-1.5">
                 <select
                   value={f.op}
                   aria-label={`${col.label} operator`}
@@ -380,6 +383,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
                     flexShrink: 0,
                   }}
                 />
+                </div>
               </div>
             )
           })}

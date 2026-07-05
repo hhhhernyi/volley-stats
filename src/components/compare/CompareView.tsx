@@ -160,7 +160,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
       {pickers}
 
       {/* ── Info board ─────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 mb-3.5 grid-cols-1 sm:grid-cols-2">
+      <div className="grid gap-2 sm:gap-4 mb-3.5 grid-cols-2">
         <BioCard player={p1} aggregated={d1} club={club1} ntEvent={nt1} slot={1} />
         <BioCard player={p2} aggregated={d2} club={club2} ntEvent={nt2} slot={2} />
       </div>
