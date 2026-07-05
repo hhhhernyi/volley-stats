@@ -7,11 +7,8 @@
  *   npx tsx scripts/scrape/run.ts --phase load  [--season 2024-2025] [--dry-run]
  *   npx tsx scripts/scrape/run.ts                   (all phases, all seasons)
  *
- * SSL note: volleyballworld.com uses a certificate chain that Node.js cannot
- * verify with its built-in CA bundle on this Windows machine. Set:
- *   $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
- * before running, or pass it inline:
- *   $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"; npx tsx scripts/scrape/run.ts --phase fetch
+ * (A past SSL issue with volleyballworld.com's certificate chain resolved
+ * itself — fetch verified working with normal TLS verification on 2026-07-05.)
  */
 
 import { fetchAll } from './fetch.js'

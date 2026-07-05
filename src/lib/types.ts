@@ -11,8 +11,9 @@ export interface Player {
   id: number
   name: string
   nationality: string
-  primary_position: Position
-  position_group: PositionGroup
+  /** null for players seen only in lega-only seasons (pre-2021/22, no bios) */
+  primary_position: Position | null
+  position_group: PositionGroup | null
   height_cm: number | null
   weight_kg: number | null
   birthday: string | null
@@ -41,7 +42,8 @@ export interface PlayerSeasonStats {
   competition_id: number
   club_id: number | null
   season: string
-  position_played: Position
+  /** null for lega-only seasons (positions not published) */
+  position_played: Position | null
   sets_played: number
   // Attacking
   atk_attempts: number
@@ -53,8 +55,8 @@ export interface PlayerSeasonStats {
   serve_errors: number | null
   // Block
   blocks: number
-  // Defense
-  digs: number
+  // Defense — null = not tracked (lega-only seasons), distinct from 0
+  digs: number | null
   // Reception
   rec_attempts: number
   rec_positive: number

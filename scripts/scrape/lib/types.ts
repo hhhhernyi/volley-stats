@@ -106,11 +106,13 @@ export interface RawMatchRow {
 /** One player's full parsed season data (sum of all matches) */
 export interface ParsedPlayerSeason {
   season: string                       // '2024/25' — DB format
-  teamVolleyballworldId: number
+  /** null for lega-only seasons (no volleyballworld coverage before 2021/22) */
+  teamVolleyballworldId: number | null
   /** Team name as scraped from the teams-list page (for club resolution) */
   teamName: string
   player: {
-    volleyballworld_id: number
+    /** null for players seen only in lega-only seasons */
+    volleyballworld_id: number | null
     name: string
     position: string | null            // DB enum value: 'OH' | 'OPP' | 'MB' | 'S' | 'L'
     nationality: string | null         // 2-letter ISO code from site
@@ -126,9 +128,13 @@ export interface ParsedPlayerSeason {
     aces: number
     serve_errors: number | null
     blocks: number
-    digs: number
+    /** null = not tracked (legavolley publishes no digs for lega-only seasons) */
+    digs: number | null
     rec_attempts: number
-    /** Not published by volleyballworld.com — always 0 (see parse.ts) */
+    /**
+     * volleyballworld doesn't publish positive receptions (0 for hybrid
+     * seasons); computable from legavolley columns for lega-only seasons.
+     */
     rec_positive: number
     rec_perfect: number
     rec_errors: number

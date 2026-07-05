@@ -146,7 +146,8 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
   const nt2   = getNtEventForSeason(p2.id, p2Season, allStats, competitions)
 
   const selfMode  = p1.id === p2.id
-  const sameGroup = p1.position_group === p2.position_group
+  // Unknown groups (lega-only era players) never share a radar
+  const sameGroup = p1.position_group != null && p1.position_group === p2.position_group
 
   const sourcesLabel =
     selectedComps.size === activeComps.length
@@ -260,7 +261,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
             ? selfMode
               ? 'Same player — axes match, overlay shows both seasons.'
               : `Both are ${p1.position_group}s — axes match, can share a radar.`
-            : `Different position types (${p1.position_group} vs ${p2.position_group}) — axes differ, shown separately.`}
+            : `Different position types (${p1.position_group ?? 'unknown'} vs ${p2.position_group ?? 'unknown'}) — axes differ, shown separately.`}
         </span>
       </div>
 
@@ -273,7 +274,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
         >
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>
-              {RADAR_CONFIGS[p1.position_group]?.label} — overlay
+              {RADAR_CONFIGS[p1.position_group ?? '']?.label} — overlay
             </span>
             <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
               raw values on fixed scale
@@ -322,7 +323,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
                   {lastName(p.name)} {season}
                 </span>
                 <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
-                  {RADAR_CONFIGS[p.position_group]?.label}
+                  {RADAR_CONFIGS[p.position_group ?? '']?.label ?? 'No radar — position unknown'}
                 </span>
               </div>
               <RadarChart
@@ -365,7 +366,7 @@ export function CompareView({ players, clubs, competitions, allStats }: Props) {
         ) : (
           <>
             <b style={{ color: 'var(--text-dim)' }}>Why no overlay:</b>{' '}
-            a {p1.primary_position} and a {p2.primary_position} use different radar axes,
+            a {p1.primary_position ?? '?'} and a {p2.primary_position ?? '?'} use different radar axes,
             so each keeps its own chart.
           </>
         )}

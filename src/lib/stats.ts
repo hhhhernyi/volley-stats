@@ -59,6 +59,9 @@ export function aggregateStats(
     assists: 0, assist_touches: 0,
   }
 
+  // digs are null (not tracked) in lega-only seasons — a 0-rate would lie
+  const digsTracked = effective.some((r) => r.digs != null)
+
   for (const r of effective) {
     sum.sets_played    += r.sets_played
     sum.atk_attempts   += r.atk_attempts
@@ -67,7 +70,7 @@ export function aggregateStats(
     sum.total_points   += r.total_points
     sum.aces           += r.aces
     sum.blocks         += r.blocks
-    sum.digs           += r.digs
+    sum.digs           += r.digs ?? 0
     sum.rec_attempts   += r.rec_attempts
     sum.rec_positive   += r.rec_positive
     sum.rec_perfect    += r.rec_perfect
@@ -97,7 +100,7 @@ export function aggregateStats(
     points_per_set:           div(sum.total_points, sum.sets_played),
     blocks_per_set:           div(sum.blocks, sum.sets_played),
     aces_per_set:             div(sum.aces, sum.sets_played),
-    digs_per_set:             div(sum.digs, sum.sets_played),
+    digs_per_set:             digsTracked ? div(sum.digs, sum.sets_played) : null,
     // volleyballworld.com doesn't publish positive receptions (rec_positive
     // is stored 0 — see docs/DATA_SOURCES.md), so a zero here means "not
     // tracked", not "0%". Report unavailable instead of a misleading 0%.
@@ -125,7 +128,8 @@ export function aggregateStats(
 export function computePercentile(
   value: number | null | undefined,
   field: StatKey,
-  playerGroup: string,
+  /** null (position unknown, lega-only era players) → no cohort, no percentile */
+  playerGroup: string | null,
   season: string,
   allRows: PlayerSeasonStats[],
   allPlayers: Player[],
@@ -133,7 +137,7 @@ export function computePercentile(
   leagueCompIds: ReadonlySet<number>,
   invert = false,
 ): number | null {
-  if (value == null) return null
+  if (value == null || playerGroup == null) return null
 
   // Build the cohort: club-only aggregate for every player in the same group
   const peers = allPlayers
@@ -166,7 +170,7 @@ export function fmtDob(dob: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export function computeAge(dob: string, referenceDate = new Date('2024-06-01')): number {
+export function computeAge(dob: string, referenceDate = new Date()): number {
   const d = new Date(dob)
   let age = referenceDate.getFullYear() - d.getFullYear()
   if (referenceDate < new Date(referenceDate.getFullYear(), d.getMonth(), d.getDate())) age--

@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
   SEASONS, COMPETITION_ID,
   parsedJsonPath,
+  type SeasonConfig,
 } from './lib/constants.js'
 import { readJson } from './lib/http-client.js'
 import { resolveClub, resolvePlayer, type ScrapedClubInfo } from './lib/player-mapper.js'
@@ -82,11 +83,12 @@ async function upsertBatch(
 
 export async function loadSeason(
   supabase: SupabaseClient,
-  urlSlug: string,
-  dbSeason: string,
+  season: SeasonConfig,
   dryRun: boolean,
 ): Promise<void> {
-  console.log(`\n── Loading ${urlSlug} ──`)
+  const { urlSlug, dbSeason } = season
+  const legaOnly = season.source === 'lega-only'
+  console.log(`\n── Loading ${urlSlug}${legaOnly ? ' (lega-only)' : ''} ──`)
 
   const parsed = await readJson<ParsedPlayerSeason[]>(parsedJsonPath(urlSlug))
   console.log(`  ${parsed.length} players to load`)
@@ -96,23 +98,22 @@ export async function loadSeason(
     return
   }
 
-  // Pre-resolve clubs (deduplicate by volleyballworld_id)
-  const clubMap = new Map<number, number>()  // vwid → db id
-  const uniqueTeamIds = [...new Set(parsed.map((p) => p.teamVolleyballworldId))]
+  // Pre-resolve clubs (deduplicate by team name — lega-only teams have no vw id)
+  const clubMap = new Map<string, number>()  // teamName → db id
 
-  for (const teamVwId of uniqueTeamIds) {
-    const anyPlayer = parsed.find((p) => p.teamVolleyballworldId === teamVwId)
+  for (const entry of parsed) {
+    if (clubMap.has(entry.teamName)) continue
     const scraped: ScrapedClubInfo = {
-      volleyballworld_id: teamVwId,
-      name: anyPlayer?.teamName ?? `team-${teamVwId}`,
+      volleyballworld_id: entry.teamVolleyballworldId,
+      name: entry.teamName,
     }
 
     if (dryRun) {
-      console.log(`  [dry-run] Would resolve club "${scraped.name}" (vwid=${teamVwId})`)
-      clubMap.set(teamVwId, -1)
+      console.log(`  [dry-run] Would resolve club "${scraped.name}" (vwid=${scraped.volleyballworld_id})`)
+      clubMap.set(entry.teamName, -1)
     } else {
       const dbId = await resolveClub(supabase, scraped)
-      clubMap.set(teamVwId, dbId)
+      clubMap.set(entry.teamName, dbId)
     }
   }
 
@@ -121,36 +122,15 @@ export async function loadSeason(
   let skipped = 0
 
   for (const entry of parsed) {
-    const clubId = clubMap.get(entry.teamVolleyballworldId)
+    const clubId = clubMap.get(entry.teamName)
     if (clubId === undefined) {
       console.warn(`  Skipping player ${entry.player.name} — no club mapping`)
       skipped++
       continue
     }
 
-    // position_played is NOT NULL in player_season_stats. If the site page
-    // for this season lacks a position, fall back to the player's
-    // primary_position from a previously loaded season.
-    let position = entry.player.position
-    if (!position && !dryRun) {
-      const { data } = await supabase
-        .from('players')
-        .select('primary_position')
-        .eq('volleyballworld_id', entry.player.volleyballworld_id)
-        .maybeSingle()
-      position = (data?.primary_position as string | undefined) ?? null
-      if (position) {
-        console.log(`  Position for ${entry.player.name} taken from players table: ${position}`)
-      }
-    }
-    if (!position) {
-      console.warn(`  Skipping player ${entry.player.name} — no position on site`)
-      skipped++
-      continue
-    }
-
     if (dryRun) {
-      console.log(`  [dry-run] Would resolve player "${entry.player.name}" (${position}, ${entry.stats.sets_played} sets)`)
+      console.log(`  [dry-run] Would resolve player "${entry.player.name}" (${entry.player.position ?? '?'}, ${entry.stats.sets_played} sets)`)
       continue
     }
 
@@ -163,12 +143,33 @@ export async function loadSeason(
       continue
     }
 
+    // If the site page for this season lacks a position, fall back to the
+    // player's primary_position from another loaded season. For lega-only
+    // seasons (no positions published at all) a null is stored as-is.
+    let position = entry.player.position
+    if (!position) {
+      const { data } = await supabase
+        .from('players')
+        .select('primary_position')
+        .eq('id', playerId)
+        .maybeSingle()
+      position = (data?.primary_position as string | undefined) ?? null
+      if (position && !legaOnly) {
+        console.log(`  Position for ${entry.player.name} taken from players table: ${position}`)
+      }
+    }
+    if (!position && !legaOnly) {
+      console.warn(`  Skipping player ${entry.player.name} — no position on site`)
+      skipped++
+      continue
+    }
+
     statsRows.push({
       player_id:       playerId,
       competition_id:  COMPETITION_ID,
       club_id:         clubId < 0 ? null : clubId,
       season:          dbSeason,
-      position_played: position,
+      position_played: position, // null allowed for lega-only seasons
 
       sets_played:    entry.stats.sets_played,
       atk_attempts:   entry.stats.atk_attempts,
@@ -221,6 +222,6 @@ export async function loadAll(options: {
   }
 
   for (const season of targets) {
-    await loadSeason(supabase, season.urlSlug, season.dbSeason, options.dryRun ?? false)
+    await loadSeason(supabase, season, options.dryRun ?? false)
   }
 }

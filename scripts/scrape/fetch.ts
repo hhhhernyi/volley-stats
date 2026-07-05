@@ -109,79 +109,9 @@ function getOrCreateSeasonManifest(
 // Main fetch function for one season
 // ---------------------------------------------------------------------------
 
-export async function fetchSeason(
-  season: SeasonConfig,
-  forceRefresh = false,
-): Promise<void> {
-  const { urlSlug, isFinished } = season
-  const manifest = await loadManifest()
-  const sm = getOrCreateSeasonManifest(manifest, urlSlug)
-
-  if (!forceRefresh && sm.fetchCompleted && isFinished) {
-    console.log(`[${urlSlug}] Finished season, already cached — skipping fetch.`)
-    return
-  }
-
-  console.log(`\n── Fetching ${urlSlug} ──`)
-
-  // Step 1: teams list
-  const teamsHtml = await fetchAndCache(
-    teamsListUrl(urlSlug),
-    teamsListPath(urlSlug),
-    forceRefresh,
-  )
-
-  const teams = extractTeamIds(teamsHtml)
-  if (teams.length === 0) {
-    throw new Error(`[${urlSlug}] No teams found in teams list page. Selector may have changed.`)
-  }
-  console.log(`  Found ${teams.length} teams`)
-
-  // Step 2: matches JSON (set scores per match, keyed by match no).
-  // The tournament number for the live API is embedded in any schedule page.
-  const scheduleHtml = await fetchAndCache(
-    teamScheduleUrl(urlSlug, teams[0].volleyballworld_id),
-    teamSchedulePath(urlSlug, teams[0].volleyballworld_id),
-    forceRefresh,
-  )
-
-  const tournamentNo = extractTournamentNo(scheduleHtml)
-  if (!tournamentNo) {
-    throw new Error(`[${urlSlug}] Could not extract tournament number from schedule page.`)
-  }
-  console.log(`  Tournament no: ${tournamentNo}`)
-
-  await fetchAndCache(
-    matchesApiUrl(tournamentNo),
-    matchesJsonPath(urlSlug),
-    forceRefresh,
-  )
-
-  // Step 3 + 4: roster → players
-  const allPlayerIds = new Set<number>()
-
-  for (const team of teams) {
-    const rosterHtml = await fetchAndCache(
-      teamRosterUrl(urlSlug, team.volleyballworld_id),
-      teamRosterPath(urlSlug, team.volleyballworld_id),
-      forceRefresh,
-    )
-
-    const stubs = extractPlayerStubs(rosterHtml, team.volleyballworld_id)
-    console.log(`  ${team.name} (${team.volleyballworld_id}): ${stubs.length} players`)
-
-    for (const stub of stubs) {
-      allPlayerIds.add(stub.volleyballworld_id)
-      await fetchAndCache(
-        playerPageUrl(urlSlug, stub.volleyballworld_id),
-        playerHtmlPath(urlSlug, stub.volleyballworld_id),
-        forceRefresh,
-      )
-    }
-  }
-
-  // Step 5: legavolley.it official stats — one page per team (authoritative
-  // for sets played, reception, attack, serve, block; see docs/DATA_SOURCES.md)
+/** legavolley.it official stats — one page per team (authoritative for
+ *  sets played, reception, attack, serve, block; see docs/DATA_SOURCES.md) */
+async function fetchLegavolley(urlSlug: string, forceRefresh: boolean): Promise<void> {
   const year = seasonStartYear(urlSlug)
   const legaIndexHtml = await fetchAndCache(
     legavolleyIndexUrl(year),
@@ -204,6 +134,94 @@ export async function fetchSeason(
       BROWSER_USER_AGENT,
     )
   }
+}
+
+export async function fetchSeason(
+  season: SeasonConfig,
+  forceRefresh = false,
+): Promise<void> {
+  const { urlSlug, isFinished } = season
+  const manifest = await loadManifest()
+  const sm = getOrCreateSeasonManifest(manifest, urlSlug)
+
+  if (!forceRefresh && sm.fetchCompleted && isFinished) {
+    console.log(`[${urlSlug}] Finished season, already cached — skipping fetch.`)
+    return
+  }
+
+  console.log(`\n── Fetching ${urlSlug} ──`)
+
+  // lega-only seasons: volleyballworld has nothing before 2021/22
+  if (season.source === 'lega-only') {
+    await fetchLegavolley(urlSlug, forceRefresh)
+
+    sm.fetchCompleted = new Date().toISOString()
+    sm.playerCount    = 0 // players counted at parse time (no vw player pages)
+    manifest.lastUpdated = new Date().toISOString()
+    await writeJson(manifestPath(), manifest)
+
+    console.log(`  ✓ ${urlSlug}: fetched legavolley team tables`)
+    return
+  }
+
+  // Step 1: teams list
+  const teamsHtml = await fetchAndCache(
+    teamsListUrl(season),
+    teamsListPath(urlSlug),
+    forceRefresh,
+  )
+
+  const teams = extractTeamIds(teamsHtml)
+  if (teams.length === 0) {
+    throw new Error(`[${urlSlug}] No teams found in teams list page. Selector may have changed.`)
+  }
+  console.log(`  Found ${teams.length} teams`)
+
+  // Step 2: matches JSON (set scores per match, keyed by match no).
+  // The tournament number for the live API is embedded in any schedule page.
+  const scheduleHtml = await fetchAndCache(
+    teamScheduleUrl(season, teams[0].volleyballworld_id),
+    teamSchedulePath(urlSlug, teams[0].volleyballworld_id),
+    forceRefresh,
+  )
+
+  const tournamentNo = extractTournamentNo(scheduleHtml)
+  if (!tournamentNo) {
+    throw new Error(`[${urlSlug}] Could not extract tournament number from schedule page.`)
+  }
+  console.log(`  Tournament no: ${tournamentNo}`)
+
+  await fetchAndCache(
+    matchesApiUrl(tournamentNo),
+    matchesJsonPath(urlSlug),
+    forceRefresh,
+  )
+
+  // Step 3 + 4: roster → players
+  const allPlayerIds = new Set<number>()
+
+  for (const team of teams) {
+    const rosterHtml = await fetchAndCache(
+      teamRosterUrl(season, team.volleyballworld_id),
+      teamRosterPath(urlSlug, team.volleyballworld_id),
+      forceRefresh,
+    )
+
+    const stubs = extractPlayerStubs(rosterHtml, team.volleyballworld_id)
+    console.log(`  ${team.name} (${team.volleyballworld_id}): ${stubs.length} players`)
+
+    for (const stub of stubs) {
+      allPlayerIds.add(stub.volleyballworld_id)
+      await fetchAndCache(
+        playerPageUrl(season, stub.volleyballworld_id),
+        playerHtmlPath(urlSlug, stub.volleyballworld_id),
+        forceRefresh,
+      )
+    }
+  }
+
+  // Step 5: legavolley.it official stats
+  await fetchLegavolley(urlSlug, forceRefresh)
 
   // Update manifest
   sm.fetchCompleted = new Date().toISOString()

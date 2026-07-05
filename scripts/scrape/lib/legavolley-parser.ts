@@ -85,6 +85,10 @@ export function parseTeamStatsTable(html: string): LegaPlayerRow[] {
     const cells = $(tr).find('td').toArray().map((td) => $(td).text())
     if (cells.length < 24) return // header or malformed row
 
+    // 1998/99 only: PUNTI is split Tot/CP/BP (side-out-era "cambio palla"
+    // points) — drop the extra CP cell so the fixed indexes below line up.
+    if (cells.length === 25) cells.splice(4, 1)
+
     const name = cells[0].replace(/ /g, ' ').trim()
     // Skip aggregate rows (e.g. team totals) — they have no personal name
     if (!name || /^tot/i.test(name)) return

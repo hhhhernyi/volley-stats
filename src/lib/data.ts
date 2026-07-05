@@ -1,16 +1,38 @@
 /**
  * data.ts — server-side Supabase reads for the app pages.
  *
- * Fetches whole tables: the dataset is small (hundreds of rows) and the
- * client components need the full stats pool anyway for aggregation and
- * percentile cohorts. Stats are paged to stay under PostgREST's max-rows
- * cap as more competitions/seasons are added.
+ * Fetches whole tables: the client components need the full stats pool for
+ * aggregation and percentile cohorts. Every table is paged — players and
+ * stats both exceed PostgREST's 1000-row max-rows cap (28 seasons loaded).
  */
 
 import { createClient } from '@/lib/supabase/server'
 import type { Player, Club, Competition, PlayerSeasonStats } from './types'
 
-const STATS_PAGE_SIZE = 1000
+const PAGE_SIZE = 1000
+
+/** Fetch a whole table in pages — PostgREST caps responses at max-rows (1000) */
+async function fetchAllPaged<T>(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  table: string,
+  orderBy: string,
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    // secondary id sort keeps page boundaries stable when orderBy has ties
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order(orderBy)
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw new Error(`Failed to load ${table}: ${error.message}`)
+    rows.push(...(data as T[]))
+    if (data.length < PAGE_SIZE) break
+  }
+  return rows
+}
 
 export interface AppData {
   players: Player[]
@@ -22,37 +44,12 @@ export interface AppData {
 export async function getAppData(): Promise<AppData> {
   const supabase = await createClient()
 
-  const [playersRes, clubsRes, competitionsRes] = await Promise.all([
-    supabase.from('players').select('*').order('name'),
-    supabase.from('clubs').select('*').order('short_name'),
-    supabase.from('competitions').select('*').order('id'),
+  const [players, clubs, competitions, allStats] = await Promise.all([
+    fetchAllPaged<Player>(supabase, 'players', 'name'),
+    fetchAllPaged<Club>(supabase, 'clubs', 'short_name'),
+    fetchAllPaged<Competition>(supabase, 'competitions', 'id'),
+    fetchAllPaged<PlayerSeasonStats>(supabase, 'player_season_stats', 'id'),
   ])
 
-  for (const [name, res] of [
-    ['players', playersRes],
-    ['clubs', clubsRes],
-    ['competitions', competitionsRes],
-  ] as const) {
-    if (res.error) throw new Error(`Failed to load ${name}: ${res.error.message}`)
-  }
-
-  const allStats: PlayerSeasonStats[] = []
-  for (let from = 0; ; from += STATS_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from('player_season_stats')
-      .select('*')
-      .order('id')
-      .range(from, from + STATS_PAGE_SIZE - 1)
-
-    if (error) throw new Error(`Failed to load player_season_stats: ${error.message}`)
-    allStats.push(...(data as PlayerSeasonStats[]))
-    if (data.length < STATS_PAGE_SIZE) break
-  }
-
-  return {
-    players: playersRes.data as Player[],
-    clubs: clubsRes.data as Club[],
-    competitions: competitionsRes.data as Competition[],
-    allStats,
-  }
+  return { players, clubs, competitions, allStats }
 }

@@ -31,6 +31,11 @@ export function normalizeName(name: string): string {
     .trim()
 }
 
+/** Sorted normalized name tokens: "Anzani Simone" and "Simone Anzani" → same key */
+export function nameKey(name: string): string {
+  return normalizeName(name).split(' ').sort().join(' ')
+}
+
 // ---------------------------------------------------------------------------
 // Position → position_group (position itself is already the DB enum value)
 // ---------------------------------------------------------------------------
@@ -53,7 +58,8 @@ export function positionGroup(pos: string | null): string | null {
 // ---------------------------------------------------------------------------
 
 export interface ScrapedClubInfo {
-  volleyballworld_id: number
+  /** null for clubs seen only in lega-only seasons (no vw coverage) */
+  volleyballworld_id: number | null
   name: string
 }
 
@@ -70,13 +76,15 @@ export async function resolveClub(
   const canonicalName = CLUB_NAME_OVERRIDES[scraped.name] ?? scraped.name
 
   // Step 1: lookup by external ID
-  const { data: byId } = await supabase
-    .from('clubs')
-    .select('id')
-    .eq('volleyballworld_id', scraped.volleyballworld_id)
-    .maybeSingle()
+  if (scraped.volleyballworld_id != null) {
+    const { data: byId } = await supabase
+      .from('clubs')
+      .select('id')
+      .eq('volleyballworld_id', scraped.volleyballworld_id)
+      .maybeSingle()
 
-  if (byId) return byId.id
+    if (byId) return byId.id
+  }
 
   // Step 2: lookup by normalized name (full or short)
   const { data: allClubs } = await supabase
@@ -91,7 +99,7 @@ export async function resolveClub(
 
   if (match) {
     // Update external ID for fast future lookups
-    if (!match.volleyballworld_id) {
+    if (!match.volleyballworld_id && scraped.volleyballworld_id != null) {
       await supabase
         .from('clubs')
         .update({ volleyballworld_id: scraped.volleyballworld_id })
@@ -123,8 +131,41 @@ export async function resolveClub(
 // resolvePlayer
 // ---------------------------------------------------------------------------
 
+interface PlayerRow {
+  id: number
+  name: string
+  volleyballworld_id: number | null
+}
+
+/**
+ * In-memory players list for name matching. Cached for the process lifetime
+ * (the loader is the only writer) and paginated past PostgREST's 1000-row
+ * response cap — a truncated list would silently create duplicate players.
+ */
+let playersCache: PlayerRow[] | null = null
+
+async function getAllPlayers(supabase: SupabaseClient): Promise<PlayerRow[]> {
+  if (playersCache) return playersCache
+
+  const all: PlayerRow[] = []
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, name, volleyballworld_id')
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(`Failed to list players: ${error.message}`)
+    all.push(...(data ?? []) as PlayerRow[])
+    if (!data || data.length < PAGE) break
+  }
+  playersCache = all
+  return all
+}
+
 export interface ScrapedPlayerInfo {
-  volleyballworld_id: number
+  /** null for players seen only in lega-only seasons (no vw coverage) */
+  volleyballworld_id: number | null
   name: string
   /** DB position_enum value: 'OH' | 'OPP' | 'MB' | 'S' | 'L' */
   position: string | null
@@ -135,58 +176,52 @@ export interface ScrapedPlayerInfo {
 
 /**
  * Resolve a scraped player to a players.id.
- * Throws if the player must be inserted but has no position
- * (primary_position is NOT NULL) — caller should catch and skip.
+ * Name matching is order-insensitive (sorted-token key) so legavolley's
+ * "Anzani Simone" links to the vw-era "Simone Anzani" row.
  */
 export async function resolvePlayer(
   supabase: SupabaseClient,
   scraped: ScrapedPlayerInfo,
 ): Promise<number> {
   // Step 1: lookup by external ID
-  const { data: byId } = await supabase
-    .from('players')
-    .select('id')
-    .eq('volleyballworld_id', scraped.volleyballworld_id)
-    .maybeSingle()
+  if (scraped.volleyballworld_id != null) {
+    const { data: byId } = await supabase
+      .from('players')
+      .select('id')
+      .eq('volleyballworld_id', scraped.volleyballworld_id)
+      .maybeSingle()
 
-  if (byId) return byId.id
+    if (byId) return byId.id
+  }
 
-  // Step 2: lookup by normalized name
-  const { data: allPlayers } = await supabase
-    .from('players')
-    .select('id, name, volleyballworld_id')
+  // Step 2: lookup by normalized name, then by sorted-token key
+  const players = await getAllPlayers(supabase)
 
   const targetNorm = normalizeName(scraped.name)
-  const match = (allPlayers ?? []).find(
-    (p: { id: number; name: string; volleyballworld_id: number | null }) =>
-      normalizeName(p.name) === targetNorm,
-  )
+  const targetKey  = nameKey(scraped.name)
+  const match =
+    players.find((p) => normalizeName(p.name) === targetNorm) ??
+    players.find((p) => nameKey(p.name) === targetKey)
 
   if (match) {
-    if (!match.volleyballworld_id) {
+    if (!match.volleyballworld_id && scraped.volleyballworld_id != null) {
       await supabase
         .from('players')
         .update({ volleyballworld_id: scraped.volleyballworld_id })
         .eq('id', match.id)
+      match.volleyballworld_id = scraped.volleyballworld_id
     }
     return match.id
   }
 
-  // Step 3: insert new player
-  const group = positionGroup(scraped.position)
-  if (!scraped.position || !group) {
-    throw new Error(
-      `Cannot insert player "${scraped.name}" — no valid position (primary_position is NOT NULL)`,
-    )
-  }
-
+  // Step 3: insert new player (position/group may be null for lega-only rows)
   const { data: inserted, error } = await supabase
     .from('players')
     .insert({
       name:               scraped.name,
       nationality:        scraped.nationality ?? 'UNK',
       primary_position:   scraped.position,
-      position_group:     group,
+      position_group:     positionGroup(scraped.position),
       height_cm:          scraped.height_cm,
       birthday:           scraped.date_of_birth,
       volleyballworld_id: scraped.volleyballworld_id,
@@ -198,6 +233,11 @@ export async function resolvePlayer(
     throw new Error(`Failed to insert player "${scraped.name}": ${error?.message}`)
   }
 
+  playersCache?.push({
+    id: inserted.id,
+    name: scraped.name,
+    volleyballworld_id: scraped.volleyballworld_id,
+  })
   console.log(`    [player] Inserted "${scraped.name}" (vwid=${scraped.volleyballworld_id})`)
   return inserted.id
 }

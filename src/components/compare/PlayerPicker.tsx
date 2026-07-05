@@ -185,7 +185,7 @@ export function PlayerPicker({
                     >
                       <span>{p.name}</span>
                       <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
-                        {p.primary_position}
+                        {p.primary_position ?? '—'}
                       </span>
                     </Combobox.Item>
                   )}

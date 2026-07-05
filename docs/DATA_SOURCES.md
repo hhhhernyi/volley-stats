@@ -6,7 +6,24 @@ a new competition or season is scraped/loaded. Planned competitions live in
 
 | Competition | Type | Seasons | Sources | Loaded |
 |---|---|---|---|---|
-| SuperLega (Italy, men) | domestic_league | 2021/22 · 2022/23 · 2023/24 · 2024/25 | legavolley.it (authoritative) + volleyballworld.com | 2026-07-04 |
+| SuperLega (Italy, men) | domestic_league | 2021/22 – 2025/26 (hybrid) | legavolley.it (authoritative) + volleyballworld.com | 2026-07-05 |
+| SuperLega (Italy, men) | domestic_league | 1998/99 – 2020/21 (lega-only) | legavolley.it only | 2026-07-05 |
+
+## Two season classes
+
+- **Hybrid (2021/22 onward)** — volleyballworld + legavolley overlay, described
+  below. volleyballworld has no SuperLega before 2021/22 (verified: the
+  2020-2021 season URL 404s), so this class cannot extend further back.
+- **lega-only (1998/99 – 2020/21)** — built from legavolley.it stats tables
+  alone (`source: 'lega-only'` in `SEASONS`). Names + counting stats only:
+  **no positions, bios, digs, or assists** (all null). `sets_played` is exact
+  and `rec_positive` is real (Tot − Err − Neg). legavolley has no per-player
+  data before 1998/99. The 1998/99 table has an extra side-out-era `PUNTI CP`
+  column, handled by row length in `legavolley-parser.ts`.
+  Players spanning both eras are linked by order-insensitive name matching
+  (legavolley lists "Cognome Nome") and keep their vw-era bio; lega-only-era
+  players get name-only rows (two-token names flipped to "Nome Cognome";
+  3+-token names kept in source order and warned).
 
 ## Hybrid source model
 
@@ -52,10 +69,19 @@ so adding a new competition requires no UI changes.
   handful per season.
 - **`digs` and `assists` are volleyballworld-sourced** (official site doesn't
   publish them). Players recovered from legavolley alone (no vw stats rows)
-  have `digs = 0` (unknown).
+  have `digs = 0` (unknown). In lega-only seasons `digs` is NULL ("not
+  tracked", surfaced as — in the app), never 0.
 - A few legavolley players who never appear on volleyballworld rosters are
-  skipped entirely (no bio/identity to insert) — logged during parse.
-- A few players have no position listed anywhere and are skipped at load
-  (`position_played` is NOT NULL).
+  skipped entirely (no bio/identity to insert) — logged during parse
+  (hybrid seasons only; lega-only seasons load everyone with sets > 0).
+- In hybrid seasons a few players have no position listed anywhere and are
+  skipped at load; lega-only rows load with `position_played = NULL`
+  (migration 003) and are excluded from position-filtered views/percentiles.
+- **Name-based identity has limits**: two different players with identical
+  normalized names collapse into one `players` row, and mid-season transfers
+  in lega-only seasons are summed into one row under the club with more sets.
+- Current-season volleyballworld URLs are season-less (`isCurrent` in
+  `SEASONS`); a season is archived under its `/2025-2026/`-style slug only
+  after the next one starts.
 - `assist_touches`, `involvement`, and `sr_efficiency` are not available from
   either source and stay null.

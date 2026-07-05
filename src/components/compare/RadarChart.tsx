@@ -45,8 +45,8 @@ interface Dataset {
 
 interface Props {
   datasets: Dataset[]
-  /** Position group — determines which radar axes apply */
-  positionGroup: string
+  /** Position group — determines which radar axes apply (null → no chart) */
+  positionGroup: string | null
   allStats: PlayerSeasonStats[]
   allPlayers: Player[]
   /** Domestic-league competition ids — percentile cohort */
@@ -67,8 +67,9 @@ export function RadarChart({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<ChartJS | null>(null)
 
-  const config = RADAR_CONFIGS[positionGroup]
-  if (!config) return null
+  const maybeConfig = positionGroup ? RADAR_CONFIGS[positionGroup] : undefined
+  if (!maybeConfig) return null
+  const config = maybeConfig // non-null binding visible to the closures below
 
   const labels = config.axes.map((a) => a.name)
 

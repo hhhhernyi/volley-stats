@@ -26,39 +26,85 @@ export const BROWSER_USER_AGENT =
 // ---------------------------------------------------------------------------
 
 export interface SeasonConfig {
-  /** Human-readable: '2024-2025' — used in URLs */
+  /** Human-readable: '2024-2025' — used in URLs and as the landing-dir name */
   urlSlug: string
   /** DB season format: '2024/25' */
   dbSeason: string
   /** Set to true once the season is finished (no more matches → cache forever) */
   isFinished: boolean
+  /**
+   * volleyballworld serves the season in progress at season-less URLs
+   * (/superlega/teams/) and only archives it under its slug once the next
+   * season starts. Flip to false (and set isFinished) when that happens.
+   */
+  isCurrent?: boolean
+  /**
+   * 'hybrid' (default): volleyballworld + legavolley overlay — 2021/22 onward.
+   * 'lega-only': legavolley.it stats tables only (volleyballworld has no
+   * SuperLega before 2021/22) — names + counting stats, no bios/digs/assists.
+   */
+  source?: 'hybrid' | 'lega-only'
 }
 
 export const SEASONS: SeasonConfig[] = [
-  { urlSlug: '2024-2025', dbSeason: '2024/25', isFinished: false },
+  { urlSlug: '2025-2026', dbSeason: '2025/26', isFinished: false, isCurrent: true },
+  { urlSlug: '2024-2025', dbSeason: '2024/25', isFinished: true },
   { urlSlug: '2023-2024', dbSeason: '2023/24', isFinished: true },
   { urlSlug: '2022-2023', dbSeason: '2022/23', isFinished: true },
   { urlSlug: '2021-2022', dbSeason: '2021/22', isFinished: true },
+  // legavolley.it archive only — per-player stats start in 1998/99
+  // (1997/98 and earlier return no data; 1998/99 has an extra PUNTI CP column)
+  { urlSlug: '2020-2021', dbSeason: '2020/21', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2019-2020', dbSeason: '2019/20', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2018-2019', dbSeason: '2018/19', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2017-2018', dbSeason: '2017/18', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2016-2017', dbSeason: '2016/17', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2015-2016', dbSeason: '2015/16', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2014-2015', dbSeason: '2014/15', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2013-2014', dbSeason: '2013/14', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2012-2013', dbSeason: '2012/13', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2011-2012', dbSeason: '2011/12', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2010-2011', dbSeason: '2010/11', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2009-2010', dbSeason: '2009/10', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2008-2009', dbSeason: '2008/09', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2007-2008', dbSeason: '2007/08', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2006-2007', dbSeason: '2006/07', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2005-2006', dbSeason: '2005/06', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2004-2005', dbSeason: '2004/05', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2003-2004', dbSeason: '2003/04', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2002-2003', dbSeason: '2002/03', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2001-2002', dbSeason: '2001/02', isFinished: true, source: 'lega-only' },
+  { urlSlug: '2000-2001', dbSeason: '2000/01', isFinished: true, source: 'lega-only' },
+  { urlSlug: '1999-2000', dbSeason: '1999/00', isFinished: true, source: 'lega-only' },
+  { urlSlug: '1998-1999', dbSeason: '1998/99', isFinished: true, source: 'lega-only' },
 ]
 
 // ---------------------------------------------------------------------------
 // URL builders
 // ---------------------------------------------------------------------------
 
-export function teamsListUrl(season: string): string {
-  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${season}/teams/`
+/**
+ * Season path segment for volleyballworld URLs. The season in progress lives
+ * at season-less URLs (/superlega/teams/); archived seasons keep their slug.
+ */
+function vwSeasonSegment(season: SeasonConfig): string {
+  return season.isCurrent ? '' : `${season.urlSlug}/`
 }
 
-export function teamRosterUrl(season: string, teamId: number): string {
-  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${season}/teams/${teamId}/players/`
+export function teamsListUrl(season: SeasonConfig): string {
+  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${vwSeasonSegment(season)}teams/`
 }
 
-export function playerPageUrl(season: string, playerId: number): string {
-  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${season}/players/${playerId}`
+export function teamRosterUrl(season: SeasonConfig, teamId: number): string {
+  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${vwSeasonSegment(season)}teams/${teamId}/players/`
 }
 
-export function teamScheduleUrl(season: string, teamId: number): string {
-  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${season}/teams/${teamId}/schedule/`
+export function playerPageUrl(season: SeasonConfig, playerId: number): string {
+  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${vwSeasonSegment(season)}players/${playerId}`
+}
+
+export function teamScheduleUrl(season: SeasonConfig, teamId: number): string {
+  return `${BASE_URL}/volleyball/competitions/${COMPETITION_SLUG}/${vwSeasonSegment(season)}teams/${teamId}/schedule/`
 }
 
 /**
@@ -133,6 +179,7 @@ export function legavolleyTeamStatsPath(season: string, teamCode: string): strin
  * normalized-name containment wouldn't land.
  */
 export const LEGAVOLLEY_CLUB_OVERRIDES: Record<string, string> = {
+  'Cuneo':         'MA Acqua S.Bernardo Cuneo',
   'Lube':          'Cucine Lube Civitanova',
   'Milano':        'Allianz Milano',
   'Monza':         'Vero Volley Monza',
@@ -173,6 +220,21 @@ export function manifestPath(): string {
 
 export const CLUB_NAME_OVERRIDES: Record<string, string> = {
   'Allianz Milano':             'Allianz Powervolley Milano',
+  'Mint Vero Volley Monza':     'Vero Volley Monza',
+  'MINT Vero Volley Monza':     'Vero Volley Monza',
+  // historical label of the same franchise (Top Volley Latina/Cisterna)
+  'Cisterna Top Volley':        'Cisterna Volley',
+  'Top Volley Cisterna':        'Cisterna Volley',
+  // sponsor-era names → one canonical club row per franchise
+  'Sir Safety Susa Perugia':    'Sir Susa Perugia',
+  'Sir Safety Conad Perugia':   'Sir Susa Perugia',
+  'WithU Verona':               'Rana Verona',
+  'Verona Volley':              'Rana Verona',
+  'Leo Shoes PerkinElmer Modena': 'Valsa Group Modena',
+  'Kioene Padova':              'Pallavolo Padova',
+  'Consar RCM Ravenna':         'Consar Ravenna',
+  'Tonno Callipo Calabria Vibo Valentia': 'Tonno Callipo Vibo Valentia',
+  'Emma Villas Aubay Siena':    'Emma Villas Siena',
   'Sir Safety Umbria Volley':   'Sir Susa Perugia',
   'Sir Susa Vim Perugia':       'Sir Susa Perugia',
   'Sir Susa Scai Perugia':      'Sir Susa Perugia',
@@ -202,4 +264,20 @@ export const CLUB_SHORT_NAMES: Record<string, string> = {
   'Top Volley Cisterna':          'Cisterna',
   'Gioiella Prisma Taranto':      'Taranto',
   'Yuasa Battery Grottazzolina':  'Grottazzolina',
+  'MA Acqua S.Bernardo Cuneo':    'Cuneo',
+  'Tonno Callipo Vibo Valentia':  'Vibo Valentia',
+  'Santa Croce':                  'Santa Croce',
+  'San Giustino':                 'San Giustino',
+  // lega-only era clubs whose last-word fallback would be wrong
+  'Castellana Grotte New Mater':  'Castellana',
+  'Cuneo Volley':                 'Cuneo',        // Piemonte Volley, folded 2014 (≠ modern Cuneo club)
+  'Gioia Del Colle VolleyGioia':  'Gioia del Colle',
+  'Milano Volley':                'Milano',
+  'Milano Sparkling':             'Sparkling',
+  'Palermo Domino':               'Palermo',
+  'Perugia Umbria':               'RPA Perugia',  // ≠ Sir Susa Perugia
+  'Roma M.':                      'M. Roma',
+  'Roma Piaggio':                 'Piaggio Roma',
+  'Trieste Adriavolley':          'Trieste',
+  'Ancona Dorica':                'Ancona',
 }

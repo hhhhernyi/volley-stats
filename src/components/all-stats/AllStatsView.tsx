@@ -143,7 +143,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
   // Build leaderboard rows — one row per player per selected season
   const rows = useMemo(() => {
     const data = players
-      .filter((p) => positions.length === 0 || positions.includes(p.primary_position))
+      .filter((p) => positions.length === 0 || (p.primary_position != null && positions.includes(p.primary_position)))
       .flatMap((p) =>
         effectiveSeasons.map((season) => {
           const d = aggregateStats(allStats, p.id, season, leagueIds, false)
@@ -415,7 +415,8 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
               </tr>
             )}
             {rows.map(({ d, player, club, season }) => {
-              const posStyle = POS_TAG_STYLE[player.primary_position] ?? {}
+              const posStyle: Partial<{ bg: string; color: string }> =
+                (player.primary_position ? POS_TAG_STYLE[player.primary_position] : undefined) ?? {}
               const nat = natInfo(player.nationality)
               return (
                 <tr
@@ -452,7 +453,7 @@ export function AllStatsView({ players, clubs, competitions, allStats }: Props) 
                       className="inline-block text-[10.5px] font-bold px-1.5 py-0.5 rounded"
                       style={{ background: posStyle.bg, color: posStyle.color }}
                     >
-                      {player.primary_position}
+                      {player.primary_position ?? '—'}
                     </span>
                   </td>
                   {cols.map((col) => {

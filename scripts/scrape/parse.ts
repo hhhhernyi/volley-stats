@@ -28,7 +28,7 @@ import {
   type ParsedTeam,
 } from './lib/html-parser.js'
 import { parseTeamCodes, parseTeamStatsTable } from './lib/legavolley-parser.js'
-import { normalizeName } from './lib/player-mapper.js'
+import { normalizeName, nameKey } from './lib/player-mapper.js'
 import type { ApiMatch, LegaPlayerRow, ParsedPlayerSeason } from './lib/types.js'
 
 // ---------------------------------------------------------------------------
@@ -89,11 +89,6 @@ async function buildMatchSetsMap(season: string): Promise<Map<number, number>> {
 // ---------------------------------------------------------------------------
 // legavolley.it overlay — official numbers override volleyballworld's
 // ---------------------------------------------------------------------------
-
-/** Sorted normalized name tokens: "Anzani Simone" and "Simone Anzani" → same key */
-function nameKey(name: string): string {
-  return normalizeName(name).split(' ').sort().join(' ')
-}
 
 /** True if every token of the shorter name appears in the longer one */
 function tokensSubset(a: string, b: string): boolean {
@@ -274,7 +269,7 @@ async function applyLegavolleyOverlay(
     for (const entry of unmatchedEntries) {
       entry.warnings.push('no legavolley match — volleyballworld numbers kept')
       allWarnings.push({
-        playerId: entry.player.volleyballworld_id,
+        playerId: entry.player.volleyballworld_id ?? 0,
         warnings: [`"${entry.player.name}" has no legavolley match — volleyballworld numbers kept`],
       })
     }
@@ -317,12 +312,136 @@ async function applyLegavolleyOverlay(
 }
 
 // ---------------------------------------------------------------------------
+// lega-only seasons (pre-2021/22) — legavolley tables are the sole source
+// ---------------------------------------------------------------------------
+
+/**
+ * legavolley lists names "Cognome Nome". Flip unambiguous two-token names to
+ * the vw-style "Nome Cognome"; with 3+ tokens the surname/given split is
+ * ambiguous, so keep the source order and warn (manual overrides can follow).
+ */
+function displayNameFromLega(name: string): { display: string; ambiguous: boolean } {
+  const tokens = name.trim().split(/\s+/)
+  if (tokens.length === 2) return { display: `${tokens[1]} ${tokens[0]}`, ambiguous: false }
+  return { display: tokens.join(' '), ambiguous: tokens.length > 2 }
+}
+
+/**
+ * Build ParsedPlayerSeason rows straight from legavolley team tables.
+ * No bios/positions/digs/assists exist for these seasons; sets are exact and
+ * positive receptions are computable (total − errors − negatives).
+ * A player appearing in two teams' tables (mid-season transfer) is merged
+ * into one row — the DB has one row per (player, competition, season).
+ */
+async function parseLegaOnlySeason(
+  season: SeasonConfig,
+): Promise<ParsedPlayerSeason[]> {
+  const { urlSlug, dbSeason } = season
+  console.log(`\n── Parsing ${urlSlug} (lega-only) ──`)
+
+  const legaTeams = await loadLegaTeams(urlSlug)
+  if (legaTeams.size === 0) {
+    throw new Error(`[${urlSlug}] No legavolley data cached — run fetch phase first.`)
+  }
+  console.log(`  legavolley teams: ${legaTeams.size}`)
+
+  const results: ParsedPlayerSeason[] = []
+  const allWarnings: { playerId: number; warnings: string[] }[] = []
+  const byNameKey = new Map<string, ParsedPlayerSeason>()
+
+  for (const [label, rows] of legaTeams) {
+    const teamName = LEGAVOLLEY_CLUB_OVERRIDES[label] ?? label
+
+    for (const row of rows) {
+      if (row.sets <= 0) continue // never on court; sets_played must be > 0
+
+      const { display, ambiguous } = displayNameFromLega(row.name)
+      const warnings: string[] = []
+      if (ambiguous) {
+        warnings.push(`name "${row.name}" kept in legavolley "Cognome Nome" order (3+ tokens, split ambiguous)`)
+      }
+
+      const stats: ParsedPlayerSeason['stats'] = {
+        sets_played:  row.sets,
+        atk_attempts: row.atkTotal,
+        atk_kills:    row.atkKills,
+        atk_errors:   row.atkErrors,
+        total_points: row.points,
+        aces:         row.aces,
+        serve_errors: row.serveErrors,
+        blocks:       row.blocks,
+        digs:         null, // not published by legavolley
+        rec_attempts: row.recTotal,
+        rec_positive: Math.max(0, row.recTotal - row.recErrors - row.recNegative),
+        rec_perfect:  row.recPerfect,
+        rec_errors:   row.recErrors,
+        assists:      null, // not published by legavolley
+      }
+
+      // Mid-season transfer: same athlete in two team tables → sum the stints,
+      // keep the team where he played more sets.
+      const key = nameKey(row.name)
+      const existing = byNameKey.get(key)
+      if (existing) {
+        const bigger = existing.stats.sets_played >= stats.sets_played
+        const s = existing.stats
+        s.atk_attempts += stats.atk_attempts
+        s.atk_kills    += stats.atk_kills
+        s.atk_errors   += stats.atk_errors
+        s.total_points += stats.total_points
+        s.aces         += stats.aces
+        s.serve_errors  = (s.serve_errors ?? 0) + (stats.serve_errors ?? 0)
+        s.blocks       += stats.blocks
+        s.rec_attempts += stats.rec_attempts
+        s.rec_positive += stats.rec_positive
+        s.rec_perfect  += stats.rec_perfect
+        s.rec_errors   += stats.rec_errors
+        s.sets_played  += stats.sets_played
+        if (!bigger) existing.teamName = teamName
+        existing.warnings.push(`played for two teams (transfer) — stats summed, club set to ${existing.teamName}`)
+        allWarnings.push({ playerId: 0, warnings: [`"${display}": ${existing.warnings[existing.warnings.length - 1]}`] })
+        continue
+      }
+
+      const entry: ParsedPlayerSeason = {
+        season: dbSeason,
+        teamVolleyballworldId: null,
+        teamName,
+        player: {
+          volleyballworld_id: null,
+          name:          display,
+          position:      null,
+          nationality:   null,
+          height_cm:     null,
+          date_of_birth: null,
+        },
+        stats,
+        warnings,
+      }
+      byNameKey.set(key, entry)
+      results.push(entry)
+      if (warnings.length > 0) {
+        allWarnings.push({ playerId: 0, warnings: warnings.map((w) => `"${display}": ${w}`) })
+      }
+    }
+  }
+
+  await writeJson(parsedJsonPath(urlSlug), results)
+  await writeJson(warningsJsonPath(urlSlug), allWarnings)
+
+  console.log(`  ✓ ${urlSlug}: ${results.length} players parsed, ${allWarnings.length} with warnings`)
+  return results
+}
+
+// ---------------------------------------------------------------------------
 // Parse one season
 // ---------------------------------------------------------------------------
 
 export async function parseSeason(
   season: SeasonConfig,
 ): Promise<ParsedPlayerSeason[]> {
+  if (season.source === 'lega-only') return parseLegaOnlySeason(season)
+
   const { urlSlug, dbSeason } = season
   console.log(`\n── Parsing ${urlSlug} ──`)
 

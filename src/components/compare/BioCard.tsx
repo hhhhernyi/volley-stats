@@ -46,7 +46,7 @@ export function BioCard({ player, aggregated: agg, club, ntEvent, slot }: Props)
           className="inline-block text-[11px] font-semibold px-1.5 py-0.5 rounded mt-1"
           style={{ background: 'var(--surface-2)', color: 'var(--text-dim)' }}
         >
-          {POS_LABEL[player.primary_position]}
+          {player.primary_position ? POS_LABEL[player.primary_position] : 'Position unknown'}
         </span>
 
         {/* Stats grid */}
